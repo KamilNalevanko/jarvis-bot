@@ -1,0 +1,14 @@
+{
+  "risk": 1,
+  "maxPos": 5,
+  "dayLoss": 3,
+  "minScore": 9,
+  "adxMin": 20,
+  "tfs": ["4h", "1h"],
+  "coins": 30,
+  "startBalance": 1000,
+  "waitBars": 48,
+  "mirror": true,
+  "mirrorRisk": 1,
+  "maxNotional": 3000
+}

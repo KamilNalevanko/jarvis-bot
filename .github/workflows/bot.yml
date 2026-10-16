@@ -1,0 +1,38 @@
+name: jarvis-bot
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # every 15 minutes (GitHub may start it a few minutes late)
+  workflow_dispatch:          # "Run workflow" button for a manual run
+
+permissions:
+  contents: write             # the bot commits state.json and REPORT.md back
+
+concurrency:
+  group: jarvis-bot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run bot
+        run: node bot/run.mjs
+        env:
+          HL_ADDR: ${{ secrets.HL_ADDR }}   # main wallet address (testnet)
+          HL_KEY: ${{ secrets.HL_KEY }}     # API wallet private key (testnet)
+      - name: Save results
+        run: |
+          git config user.name "jarvis-bot"
+          git config user.email "jarvis-bot@users.noreply.github.com"
+          git add state.json REPORT.md
+          git commit -m "bot run $(date -u +%Y-%m-%dT%H:%MZ)" || exit 0
+          git pull --rebase --autostash || true
+          git push
