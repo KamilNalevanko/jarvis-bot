@@ -30,7 +30,7 @@ function resample(C, ms){
 const src = fs.readFileSync('bot/run.mjs', 'utf8');
 const sec = src.slice(src.indexOf('function fillLeg('), src.indexOf('/* ---------- Hyperliquid TESTNET mirror')).replace(/Date\.now\(\)/g, 'CLOCK()');
 const S = {start:CFG.startBalance, balance:CFG.startBalance, brackets:[], history:[]};
-const A = new Function('S', 'FEE_T', 'FEE_M', 'say', 'CLOCK', sec + '\nreturn {fillLeg, step, equityNow, lastPx};')(S, FEE_T, FEE_M, say, CLOCK);
+const A = new Function('S', 'FEE_T', 'FEE_M', 'say', 'CLOCK', 'tgSay', 'CFG', sec + '\nreturn {fillLeg, step, equityNow, lastPx};')(S, FEE_T, FEE_M, say, CLOCK, () => {}, CFG);
 
 /* data */
 let last = 0;

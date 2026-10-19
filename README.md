@@ -11,4 +11,6 @@ Each run:
 
 Orders can only go to `api.hyperliquid-testnet.xyz`. There is no mainnet code path in the bot.
 
-Settings live in `config.json`. Secrets (`HL_ADDR`, `HL_KEY`) live in GitHub → Settings → Secrets and variables → Actions and are never visible in the repository.
+Telegram: with secrets `TG_TOKEN` and `TG_CHAT` the bot messages you about new calls, filled entries, TP1, closes and a daily summary.
+
+Settings live in `config.json`. Secrets (`HL_ADDR`, `HL_KEY`, `TG_TOKEN`, `TG_CHAT`) live in GitHub → Settings → Secrets and variables → Actions and are never visible in the repository.

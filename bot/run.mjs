@@ -71,6 +71,9 @@ function finalize(b, reason){
     pnl:b.realized, R: b.riskUsd ? b.realized / b.riskUsd : 0, fees:b.fees, reason, opened:b.created, closed:Date.now(), filled:b.filledQty > 0};
   S.history.unshift(h); finished.push(b);
   say(`CLOSE ${b.coin} ${b.dir} ${reason}${h.filled ? ` pnl ${h.pnl.toFixed(2)} (${h.R.toFixed(2)}R)` : ''}`);
+  const icon = {TP2:'🎯', SL:'🛑', BE:'⚖️'}[reason] || '⌛';
+  if(h.filled) tgSay(`${icon} <b>${b.coin} ${b.dir.toUpperCase()}</b> (${b.tf}) uzavretý: ${({TP2:'TP2 trafený', SL:'stop loss', BE:'zvyšok na vstupe (BE)'})[reason] || reason}\nPnL ${h.pnl >= 0 ? '+' : '−'}$${Math.abs(h.pnl).toFixed(2)} (${h.R >= 0 ? '+' : ''}${h.R.toFixed(2)}R)`);
+  else if(CFG.tgMissed) tgSay(`⌛ ${b.coin} ${b.dir} (${b.tf}) call zrušený: cena na vstup neprišla`);
 }
 function step(b, lo, hi, t){
   const L = b.dir === 'long', reach = px => L ? hi >= px : lo <= px, against = px => L ? lo <= px : hi >= px;
@@ -91,6 +94,20 @@ function equityNow(){ let e = S.balance; for(const b of S.brackets){ const m = l
 
 /* ---------- Hyperliquid TESTNET mirror ---------- */
 const KEY = process.env.HL_KEY, ADDR = process.env.HL_ADDR, mirrorOn = CFG.mirror && KEY && ADDR;
+
+/* ---------- Telegram: new calls, entry filled, TP1, closes, daily summary (secrets TG_TOKEN + TG_CHAT) ---------- */
+const TG_TOKEN = process.env.TG_TOKEN, TG_CHAT = process.env.TG_CHAT, tgMsgs = [];
+const p5 = v => +(+v).toPrecision(5);
+const tgSay = t => { if(TG_TOKEN && TG_CHAT) tgMsgs.push(t); };
+async function tgFlush(){
+  for(const text of tgMsgs){
+    try{
+      const r = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({chat_id:TG_CHAT, text, parse_mode:'HTML', disable_web_page_preview:true})});
+      if(!r.ok) say(`telegram HTTP ${r.status}`);
+    }catch(e){ say('telegram: ' + e.message); }
+  }
+}
 const wallet = mirrorOn ? new ethers.Wallet(KEY.startsWith('0x') ? KEY : '0x' + KEY) : null;
 const wire = x => { const t = (+x).toFixed(8).replace(/\.?0+$/, ''); return t === '-0' ? '0' : t; };
 const pxW = (px, szd) => wire(+(+(+px).toPrecision(5)).toFixed(Math.max(0, 6 - szd)));
@@ -152,7 +169,10 @@ async function main(){
   for(const b of S.brackets.slice()){
     try{
       const C = await candles(b.coin, '5m', 0, (b.last || b.created) - 3e5);
+      const f0 = b.filledQty, t10 = b.t1;
       for(const c of C){ lastPx[b.coin] = c.c; if(c.t + 3e5 <= (b.last || b.created) || c.t < b.created) continue; if(step(b, c.l, c.h, c.t + 3e5)) break; }
+      if(S.brackets.includes(b) && !f0 && b.filledQty > 0) tgSay(`📍 <b>${b.coin} ${b.dir.toUpperCase()}</b> (${b.tf}): cena prišla do zóny, vstup vyplnený @ ${p5(b.avg)}\nSL ${p5(b.sl0)} · TP1 ${p5(b.tp1)} · TP2 ${p5(b.tp2)}`);
+      if(S.brackets.includes(b) && !t10 && b.t1) tgSay(`✅ <b>${b.coin} ${b.dir.toUpperCase()}</b>: TP1 trafený, stop posunutý na vstup`);
       if(S.brackets.includes(b)) b.last = now;
     }catch(e){ say(`settle ${b.coin}: ${e.message}`); }
   }
@@ -200,6 +220,7 @@ async function main(){
       if(p.market) fillLeg(b, b.legs[0], pk.price, FEE_T);
       S.brackets.push(b);
       say(`OPEN ${pk.coin} ${pk.tf} ${pk.dir} score ${pk.score.toFixed(1)} E1 ${p.e1} E2 ${p.e2} SL ${p.sl} TP ${p.tp1}/${p.tp2} risk $${riskUsd.toFixed(2)}`);
+      tgSay(`🆕 <b>Call ${pk.coin} ${pk.dir.toUpperCase()}</b> (${pk.tf}, skóre ${pk.score.toFixed(1)})\n${p.market ? 'Cena je v zóne, vstup hneď.' : `Limitky čakajú: E1 ${p5(p.e1)} / E2 ${p5(p.e2)} (cena teraz ${p5(pk.price)})`}\nSL ${p5(p.sl)} · TP1 ${p5(p.tp1)} · TP2 ${p5(p.tp2)}${p.tp3 ? ` · TP3 ${p5(p.tp3)} (runner)` : ''} · RR ${p.rr2.toFixed(1)}`);
       if(mirrorOn) await mirrorOpen(b, p);
     }
   }
@@ -209,6 +230,13 @@ async function main(){
   if(mirrorOn){ try{ const ts = await testnetState(); S.testnet = {equity:+ts.equity.toFixed(2), positions:(ts.st.assetPositions || []).filter(x => +x.position.szi !== 0).length, orders:ts.oo.length, at:now}; }catch(e){} }
   S.log = [...log, ...(S.log || [])].slice(0, 300);
   S.history = S.history.slice(0, 1000);
+  const day = new Date(now).toISOString().slice(0, 10);
+  if(S.lastDaily !== day && new Date(now).getUTCHours() >= 6){ // once a day, first run after 06:00 UTC (08:00 in Slovakia)
+    S.lastDaily = day;
+    const y = S.history.filter(h => h.filled && now - h.closed < 864e5), yp = y.reduce((a, h) => a + h.pnl, 0), e = equityNow();
+    tgSay(`📊 <b>J.A.R.V.I.S. denný prehľad</b>\nDemo účet $${e.toFixed(2)} (${e >= S.start ? '+' : ''}${((e / S.start - 1) * 100).toFixed(2)} % od štartu)\nZa 24 h: ${y.length} uzavretých, ${y.filter(h => h.pnl > 0).length} v zisku, ${yp >= 0 ? '+' : '−'}$${Math.abs(yp).toFixed(2)}\nOtvorené: ${S.brackets.map(b => `${b.coin} ${b.dir}${b.filledQty ? '' : ' (čaká na vstup)'}`).join(', ') || 'nič'}`);
+  }
+  await tgFlush();
   fs.writeFileSync('state.json', JSON.stringify(S));
   const f = S.history.filter(h => h.filled), wins = f.filter(h => h.pnl > 0).length, eqNow = equityNow();
   const days = ((now - S.created) / 864e5).toFixed(1);

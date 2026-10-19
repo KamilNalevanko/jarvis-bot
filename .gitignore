@@ -1,1 +1,5 @@
 node_modules/
+bot-local.log
+old/
+REPLAY.md
+replay-equity.json
