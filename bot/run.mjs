@@ -152,7 +152,7 @@ async function main(){
   for(const b of S.brackets.slice()){
     try{
       const C = await candles(b.coin, '5m', 0, (b.last || b.created) - 3e5);
-      for(const c of C){ lastPx[b.coin] = c.c; if(c.t + 3e5 <= (b.last || b.created)) continue; if(step(b, c.l, c.h, c.t + 3e5)) break; }
+      for(const c of C){ lastPx[b.coin] = c.c; if(c.t + 3e5 <= (b.last || b.created) || c.t < b.created) continue; if(step(b, c.l, c.h, c.t + 3e5)) break; }
       if(S.brackets.includes(b)) b.last = now;
     }catch(e){ say(`settle ${b.coin}: ${e.message}`); }
   }
@@ -188,6 +188,10 @@ async function main(){
     for(const pk of picks){
       if(S.brackets.length >= CFG.maxPos) break;
       if(S.brackets.some(b => b.coin === pk.coin)) continue;
+      // same setup ended unfilled recently (missed / expired): wait one bar of that timeframe before trying it again
+      if(S.history.some(h => h.coin === pk.coin && h.dir === pk.dir && h.tf === pk.tf && !h.filled && now - h.closed < TFMS[pk.tf])) continue;
+      // 24h pause on a coin after a stop loss there (tested on 7 months: better in- and out-of-sample)
+      if(S.history.some(h => h.coin === pk.coin && h.reason === 'SL' && now - h.closed < (CFG.slPauseH ?? 24) * 36e5)) continue;
       const p = pk.plan, riskUsd = equityNow() * CFG.risk / 100, qty = riskUsd / Math.abs(p.avg - p.sl);
       const b = {id:'s' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), coin:pk.coin, tf:pk.tf, dir:pk.dir, source:'server', score:pk.score,
         legs:[{px:p.e1, qty:qty/2, filled:false}, {px:p.e2, qty:qty/2, filled:false}], sl0:p.sl, sl:p.sl, tp1:p.tp1, tp2:p.tp2, riskUsd,

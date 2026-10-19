@@ -381,7 +381,7 @@ header,.side,.bottom,.modal .box,.toast,.legend,.scrollhint{zoom:var(--ui,1)}
             <label class="f"><span data-i18n="leverage"></span><input id="tLev" class="mono" inputmode="decimal" value="5"></label>
             <label class="f"><span data-i18n="exitOpt"></span><input id="tExit" class="mono" inputmode="decimal"></label>
             <label class="f" style="grid-column:span 2"><span data-i18n="notes"></span><input id="tNotes"></label>
-            <div class="btnrow"><button class="btn fill" type="submit" id="tSubmit" data-i18n="addTrade"></button><button class="btn" type="button" id="tCancel" hidden data-i18n="cancel"></button></div>
+            <div class="btnrow"><button class="btn fill" type="submit" id="tSubmit" data-i18n="addTrade"></button><button class="btn" type="button" id="tLive">💰 <span data-i18n="tLive"></span></button><button class="btn" type="button" id="tCancel" hidden data-i18n="cancel"></button></div>
           </form>
           <div class="tscroll"><table><thead><tr><th data-i18n="thDate"></th><th>Coin</th><th data-i18n="thDir"></th><th>Entry</th><th>Exit</th><th>SL</th><th data-i18n="thSize"></th><th>PnL</th><th>R</th><th></th></tr></thead><tbody id="tBody"></tbody></table></div>
         </div>
@@ -710,7 +710,7 @@ const I18N = {
   btTrades:['Trades','Obchody'], btAvgR:['Avg R','Priem. R'], btTotalR:['Total R','Spolu R'], btList:['Last trades','Posledné obchody'],
   showPat:['Chart patterns (wedges, triangles)','Formácie (kliny, trojuholníky)'], macroTitle:['📅 Macro this week (USD)','📅 Makro tento týždeň (USD)'],
   topTitle:['Top setups now','Top setupy teraz'],
-  aPreset:['Recommended','Odporúčané'], aLive:['Also place the trades on my Hyperliquid TESTNET (automatic, no confirmation)','Zadávať obchody aj na môj Hyperliquid TESTNET (automaticky, bez potvrdzovania)'],
+  aPreset:['Recommended','Odporúčané'], tLive:['Send to Hyperliquid','Poslať na Hyperliquid'], aLive:['Also place the trades on my Hyperliquid TESTNET (automatic, no confirmation)','Zadávať obchody aj na môj Hyperliquid TESTNET (automaticky, bez potvrdzovania)'],
   pfManual:['My trades','Moje trady'], pfValue:['Account value','Hodnota účtu'], pfPos:['Positions','Pozície'], pfHist:['Trade history','História obchodov'], pfBal:['Balances','Zostatky'],
   openPos:['Open positions & orders','Otvorené pozície a príkazy'], history:['History','História'],
   demoStart:['Starting balance ($)','Počiatočný zostatok ($)'], demoReset:['Reset demo account','Resetovať demo účet'],
@@ -2315,7 +2315,8 @@ let editTradeId = null;
 function tradeCalc(t){
   const s = t.dir === 'long' ? 1 : -1, px = t.exit ?? (state.mids[t.coin] != null ? +state.mids[t.coin] : ctxOf(t.coin)?.mark);
   if(px == null || !t.entry) return {pnl:null, R:null, px:null};
-  const pnl = s * (px - t.entry) / t.entry * t.size;
+  if(t.hl && t.hl.state === 'pending' && t.exit == null) return {pnl:null, R:null, px};
+  const pnl = t.hl?.pnl != null ? t.hl.pnl : s * (px - t.entry) / t.entry * t.size;
   const R = t.sl ? s * (px - t.entry) / Math.abs(t.entry - t.sl) : null;
   return {pnl, R, px};
 }
@@ -2347,6 +2348,7 @@ $('#tCancel').onclick = () => { editTradeId = null; $('#tForm').reset(); $('#tLe
 $('#tBody').addEventListener('click', async e => {
   const b = e.target.closest('button[data-act]'); if(!b) return;
   const T = prof().trades, t = T.find(x => x.id === b.dataset.id); if(!t) return;
+  if(b.dataset.act === 'close' && t.hl && t.hl.state !== 'closed'){ toast(tr('This trade lives on Hyperliquid: close it in 💰 Live, the result syncs back here.', 'Tento obchod je na Hyperliquide: zavri ho v 💰 Live, výsledok sa sem zapíše sám.')); openTab('real'); return; }
   if(b.dataset.act === 'close'){
     const px = state.mids[t.coin] != null ? +state.mids[t.coin] : ctxOf(t.coin)?.mark;
     if(px == null){ toast(tr('No live price for this coin','Pre tento coin nie je živá cena')); return; }
@@ -2379,7 +2381,7 @@ function renderTrades(){
     const c = tradeCalc(t), isOpen = t.exit == null;
     return `<tr>
       <td>${new Date(t.opened).toLocaleDateString(LANG === 'sk' ? 'sk-SK' : 'en-GB',{day:'2-digit',month:'2-digit'})}</td>
-      <td style="font-family:Inter,system-ui,sans-serif;font-weight:700" title="${esc(t.notes || '')}">${esc(t.coin)}${isOpen ? ' <span class="pill open">LIVE</span>' : ''}</td>
+      <td style="font-family:Inter,system-ui,sans-serif;font-weight:700" title="${esc(t.notes || '')}">${esc(t.coin)}${t.hl ? ` <span class="pill ${t.hl.state === 'open' ? 'filled' : t.hl.state === 'closed' ? 'tp1' : t.hl.state === 'cancelled' ? 'missed' : 'open'}">HL ${hlStateLabel(t.hl.state)}</span>` : isOpen ? ' <span class="pill open">LIVE</span>' : ''}</td>
       <td><span class="badge ${t.dir}">${t.dir.toUpperCase()}</span></td>
       <td>${fmt(t.entry)}</td><td>${isOpen ? `<span class="muted">${fmt(c.px)}</span>` : fmt(t.exit)}</td><td class="down">${t.sl ? fmt(t.sl) : '–'}</td>
       <td>${fmtUsd(t.size)}${t.lev ? ` <span class="muted">${t.lev}x</span>` : ''}</td>
@@ -2574,7 +2576,7 @@ async function paperCatchUp(){ // replays 5m candles for the time the page was c
   for(const b of pp.brackets.slice()){
     try{
       const C = await fetchCandles(b.coin, '5m', 0, b.last - 3e5);
-      for(const c of C){ if(c.t + 3e5 <= b.last) continue; changed = true; if(stepBracket(b, c.l, c.h, c.t + 3e5)) break; }
+      for(const c of C){ if(c.t + 3e5 <= b.last || c.t < b.created) continue; changed = true; if(stepBracket(b, c.l, c.h, c.t + 3e5)) break; }
       if(pp.brackets.includes(b)) b.last = Date.now();
     }catch(e){ console.warn('catch-up', e); }
   }
@@ -2667,6 +2669,7 @@ async function autoRun(){
     let opened = 0;
     for(const c of picks){
       if(PP().brackets.length >= a.maxPos) break; if(PP().brackets.some(b => b.coin === c.coin)) continue;
+      if(PP().history.some(h => h.coin === c.coin && h.reason === 'SL' && Date.now() - h.closed < 864e5)) continue; // 24h pause on a coin after its stop loss (helps in- and out-of-sample)
       const nb = openPaper(c, 'auto'); if(!nb) continue; opened++;
       if(a.liveTestnet) await autoLiveTestnet(c, nb);
     }
@@ -2885,12 +2888,85 @@ async function liveTradeCall(call){
       + `${tr('Total size','Celková veľkosť')} ${fmtUsd(B.half * 2 * p.avg)} · ${tr('max loss','max. strata')} ≈ ${fmtUsd(B.loss)} (${(B.loss / B.eq * 100).toFixed(2)} % ${tr('of','z')} ${fmtUsd(B.eq)})`
       + `${B.capped ? '\n' + tr('Size capped by your max position setting.', 'Veľkosť obmedzená tvojím max. nastavením.') : ''}\n\n${tr('Place these orders on Hyperliquid?', 'Zadať tieto príkazy na Hyperliquid?')}`;
     if(!(await askConfirm(text))) return;
-    await hlExchange(B.legs[0]);
-    try{ await hlExchange(B.legs[1]); }
-    catch(e){ throw new Error(tr('Order 1 placed, order 2 failed: ', 'Príkaz 1 zadaný, príkaz 2 zlyhal: ') + e.message); }
+    const r1 = await hlExchange(B.legs[0]); let r2 = null;
+    try{ r2 = await hlExchange(B.legs[1]); }
+    catch(e){ toast(tr('Order 1 placed, order 2 failed: ', 'Príkaz 1 zadaný, príkaz 2 zlyhal: ') + e.message); }
+    recordHlTrade({coin:call.coin, dir:call.dir, entry:p.avg, sl:p.sl, tp:p.tp2, size:B.half * (r2 ? 2 : 1) * p.avg, notes:`${TFLABEL[call.tf]} call · ${call.score.toFixed(1)} ${tr('pts','b.')}`}, [restingOid(r1), restingOid(r2)], B.a.i);
     notify(tr(`Live ${call.dir.toUpperCase()} ${call.coin} placed`, `Live ${call.dir.toUpperCase()} ${call.coin} zadaný`), `${c.net} · E1 ${px(p.e1)} / E2 ${px(p.e2)} · SL ${px(p.sl)}`, call.coin);
     openTab('real'); refreshLive();
-  }catch(e){ toast('Hyperliquid: ' + e.message); notify(tr('Hyperliquid error','Chyba Hyperliquid'), e.message); }
+  }catch(e){
+    notify(tr('Hyperliquid error','Chyba Hyperliquid'), e.message);
+    if(await askConfirm(tr(`Hyperliquid failed: ${e.message}\n\nOpen the same trade as a demo (simulation) instead?`, `Hyperliquid zlyhal: ${e.message}\n\nOtvoriť ten istý obchod ako demo (simuláciu)?`))){ if(openPaper(call, 'manual')) openTab('demo'); }
+  }
+}
+const hlStateLabel = st => ({pending:tr('waiting','čaká'), open:tr('open','otvorený'), closed:tr('closed','zavretý'), cancelled:tr('cancelled','zrušený')})[st] || st;
+function recordHlTrade(t, oids, asset){
+  const c = hlCfg(), ids = oids.filter(x => x != null);
+  prof().trades.unshift({id:'t' + Date.now().toString(36), opened:Date.now(), closed:null, lev:null, exit:null, ...t,
+    hl:{net:c.net, asset, oids:ids, placed:Date.now(), state: ids.length ? 'pending' : 'open'}});
+  persist(); renderTrades();
+}
+/* your own entry / SL / TP from the My trades form -> one Hyperliquid order with exchange-side TP and SL */
+async function liveManual(){
+  const coinIn = $('#tCoin').value.trim(), known = state.ctxs.find(x => x.name.toUpperCase() === coinIn.toUpperCase()), coin = known ? known.name : coinIn.toUpperCase();
+  const dir = $('#tDir').value, L = dir === 'long', entry = num($('#tEntry').value), sl = num($('#tSL').value), tp = num($('#tTP').value), sizeUsd = num($('#tSize').value);
+  if(!coin || !(entry > 0) || !(sl > 0)){ toast(tr('Fill in coin, entry and stop loss', 'Vyplň coin, entry a stop loss')); return; }
+  if(L ? sl >= entry : sl <= entry){ toast(tr('For a long the stop must be below entry, for a short above it', 'Pri longu musí byť stop pod vstupom, pri shorte nad ním')); return; }
+  if(tp && (L ? tp <= entry : tp >= entry)){ toast(tr('Take profit is on the wrong side of entry', 'Take profit je na zlej strane od vstupu')); return; }
+  const tpx = tp || entry + (L ? 1 : -1) * 2 * Math.abs(entry - sl);
+  const asCall = {coin, dir, tf:state.tf, score:0, price: midOf(coin) ?? entry, plan:{e1:entry, e2:entry, avg:entry, sl, tp1:tpx, tp2:tpx, market:false, rr2:Math.abs(tpx - entry) / Math.abs(entry - sl)}};
+  const demoInstead = async why => { if(await askConfirm(`${why}\n\n${tr('Open the same trade as a demo (simulation) instead?', 'Otvoriť ten istý obchod ako demo (simuláciu)?')}`)){ if(openPaper(asCall, 'manual')) openTab('demo'); } };
+  const c = hlCfg();
+  if(!c.addr || !c.key){ await demoInstead(tr('Hyperliquid is not connected (Settings → 💰 Hyperliquid).', 'Hyperliquid nie je pripojený (Nastavenia → 💰 Hyperliquid).')); return; }
+  try{
+    const meta = await hlMeta(), a = meta.find(m => m.name === coin);
+    if(!a) throw new Error(tr(`${coin} is not listed on ${c.net}`, `${coin} nie je na ${c.net}`));
+    const ev = await hlEquity(c.addr);
+    let qty = sizeUsd > 0 ? sizeUsd / entry : ev.total * (+S().risk || 1) / 100 / Math.abs(entry - sl), capped = false;
+    if(qty * entry > c.maxNotional){ qty = c.maxNotional / entry; capped = true; }
+    const q = Math.floor(qty * 10**a.sz + 1e-9) / 10**a.sz;
+    if(!(q * entry >= 10)) throw new Error(tr('Order too small: Hyperliquid needs at least $10.', 'Príkaz je príliš malý: Hyperliquid chce aspoň $10.'));
+    const sz = hlSz(q, a.sz), px = v => hlPx(v, a.sz), loss = q * Math.abs(entry - sl);
+    const orders = [{a:a.i, b:L, p:px(entry), s:sz, r:false, t:{limit:{tif:'Gtc'}}}];
+    if(tp) orders.push({a:a.i, b:!L, p:px(tp * (L ? 0.9 : 1.1)), s:sz, r:true, t:{trigger:{isMarket:true, triggerPx:px(tp), tpsl:'tp'}}});
+    orders.push({a:a.i, b:!L, p:px(sl * (L ? 0.9 : 1.1)), s:sz, r:true, t:{trigger:{isMarket:true, triggerPx:px(sl), tpsl:'sl'}}});
+    const text = `${c.net === 'mainnet' ? tr('⚠️ MAINNET · REAL MONEY','⚠️ MAINNET · SKUTOČNÉ PENIAZE') : '🧪 TESTNET'}\n${dir.toUpperCase()} ${coin}\n\n`
+      + `Limit ${L ? tr('BUY','KÚPA') : tr('SELL','PREDAJ')} ${sz} @ ${px(entry)}${tp ? ` → TP ${px(tp)}` : ''} · SL ${px(sl)}\n\n`
+      + `${tr('Size','Veľkosť')} ${fmtUsd(q * entry)} · ${tr('max loss','max. strata')} ≈ ${fmtUsd(loss)} (${(loss / ev.total * 100).toFixed(2)} % ${tr('of','z')} ${fmtUsd(ev.total)})${capped ? '\n' + tr('Size capped by your max position setting.', 'Veľkosť obmedzená tvojím max. nastavením.') : ''}\n\n${tr('Place on Hyperliquid?', 'Zadať na Hyperliquid?')}`;
+    if(!(await askConfirm(text))) return;
+    const r = await hlExchange({type:'order', orders, grouping:'normalTpsl'});
+    recordHlTrade({coin, dir, entry, sl, tp:tp || null, size:q * entry, lev:num($('#tLev').value) || null, notes:$('#tNotes').value.trim()}, [restingOid(r)], a.i);
+    $('#tForm').reset(); $('#tLev').value = 5; $('#tCoin').value = state.coin;
+    notify(tr(`Hyperliquid ${dir.toUpperCase()} ${coin} placed`, `Hyperliquid ${dir.toUpperCase()} ${coin} zadaný`), `${c.net} · ${px(entry)} · SL ${px(sl)}${tp ? ' · TP ' + px(tp) : ''}`, coin);
+  }catch(e){ notify(tr('Hyperliquid error','Chyba Hyperliquid'), e.message); await demoInstead(tr(`Hyperliquid failed: ${e.message}`, `Hyperliquid zlyhal: ${e.message}`)); }
+}
+$('#tLive').onclick = liveManual;
+/* keeps My trades in sync with Hyperliquid: waiting -> open (real fill price) -> closed (real exit and PnL) */
+let hlSyncBusy = false;
+async function syncHlTrades(){
+  const c = hlCfg(); if(!c.addr || hlSyncBusy || !isPrimary) return;
+  const T = prof().trades.filter(t => t.hl && t.exit == null && t.hl.net === c.net); if(!T.length) return;
+  hlSyncBusy = true;
+  try{
+    const [st, oo, fills] = await Promise.all([hlInfo({type:'clearinghouseState', user:c.addr}), hlInfo({type:'frontendOpenOrders', user:c.addr}), hlInfo({type:'userFills', user:c.addr})]);
+    const resting = new Set((oo || []).map(o => o.oid)); let changed = false;
+    for(const t of T){
+      const prev = t.hl.state, pos = (st.assetPositions || []).map(x => x.position).find(x => x.coin === t.coin && +x.szi !== 0);
+      const mine = (fills || []).filter(f => f.coin === t.coin && f.time >= t.hl.placed - 5000);
+      if(pos){ t.hl.state = 'open'; if(+pos.entryPx) t.entry = +pos.entryPx; }
+      else if(t.hl.oids.some(o => resting.has(o))) t.hl.state = 'pending';
+      else if(prev === 'open' || mine.some(f => t.hl.oids.includes(f.oid)) || !t.hl.oids.length){
+        const closes = mine.filter(f => +f.closedPnl !== 0);
+        if(closes.length){ const q = closes.reduce((a, f) => a + +f.sz, 0); t.exit = closes.reduce((a, f) => a + +f.px * +f.sz, 0) / q; t.closed = Math.max(...closes.map(f => f.time)); t.hl.pnl = closes.reduce((a, f) => a + +f.closedPnl, 0) - mine.reduce((a, f) => a + +f.fee, 0); t.hl.state = 'closed'; }
+      } else if(Date.now() - t.hl.placed > 90000){ t.hl.state = 'cancelled'; t.exit = t.entry; t.closed = Date.now(); t.notes = (t.notes || '') + tr(' · cancelled on Hyperliquid', ' · zrušené na Hyperliquide'); }
+      if(t.hl.state !== prev){
+        changed = true;
+        notify(`Hyperliquid ${t.coin}: ${hlStateLabel(t.hl.state)}`, t.hl.state === 'closed' ? `PnL ${fmtUsd(t.hl.pnl, true)} · exit ${fmt(t.exit)}` : t.hl.state === 'open' ? `${tr('filled at','vyplnené za')} ${fmt(t.entry)}` : '', t.coin);
+      }
+    }
+    if(changed){ persist(); renderTrades(); }
+  }catch(e){ console.warn('hl sync', e); }
+  finally{ hlSyncBusy = false; }
 }
 /* autopilot mirror: same bracket on the TESTNET only, no confirmation (authorized by the user). Mainnet is never used here. */
 async function autoLiveTestnet(call, b){
@@ -3581,7 +3657,7 @@ function openTab(name){
   $$('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === name));
   $$('.tabpane').forEach(p => p.classList.toggle('on', p.id === 'tab-' + name));
   if(name === 'journal') evalJournal();
-  if(name === 'trades') renderTrades();
+  if(name === 'trades'){ renderTrades(); syncHlTrades(); }
   if(name === 'demo') renderDemo();
   if(name === 'bt'){ $('#btTf').value = ['15m','1h','4h'].includes(state.tf) ? state.tf : '4h'; $('#btMin').value = (+S().minScore || 9) + tfBonus($('#btTf').value); }
   if(name === 'real') refreshLive();
@@ -3628,6 +3704,7 @@ document.addEventListener('keydown', e => {
   await load();
   paperCatchUp();
   setInterval(() => { if($('#tab-real').classList.contains('on')) refreshLive(); }, 5000);
+  setInterval(syncHlTrades, 30000); setTimeout(syncHlTrades, 4000);
   setInterval(refreshCtx, 30000);
   loadMacro(); setInterval(loadMacro, 3600000); setInterval(renderMacro, 60000);
   setTimeout(() => refreshTop(), 3000); setInterval(() => refreshTop(), 15 * 60000);
