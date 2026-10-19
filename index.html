@@ -1409,8 +1409,10 @@ function buildPlan(A, dir, opts={}){
   const tp1 = (t1 != null && t1 - front <= avg + 3*risk) ? t1 - front : avg + 1.5*risk;
   const t2 = targets.find(v => v - front >= Math.max(tp1 + 0.8*risk, avg + 2.5*risk));
   const tp2 = (t2 != null && t2 - front <= avg + 8*risk) ? t2 - front : Math.max(avg + 3*risk, tp1 + risk);
-  return {dir, basis, market: e1 === P, e1:back(e1), e2:back(e2), sl:back(sl), tp1:back(tp1), tp2:back(tp2), avg:back(avg),
-    rr1:(tp1 - avg)/risk, rr2:(tp2 - avg)/risk, slPct: risk / Math.abs(back(avg)) * 100,
+  const t3 = targets.find(v => v - front >= tp2 + 0.8*risk);
+  const tp3Lvl = t3 != null && t3 - front <= avg + 12*risk, tp3 = tp3Lvl ? t3 - front : tp2 + 0.6*(tp2 - avg);
+  return {dir, basis, market: e1 === P, e1:back(e1), e2:back(e2), sl:back(sl), tp1:back(tp1), tp2:back(tp2), tp3:back(tp3), avg:back(avg),
+    rr1:(tp1 - avg)/risk, rr2:(tp2 - avg)/risk, rr3:(tp3 - avg)/risk, tp3Lvl, slPct: risk / Math.abs(back(avg)) * 100,
     tp1Lvl: t1 != null && t1 - front <= avg + 3*risk, tp2Lvl: t2 != null && t2 - front <= avg + 8*risk, dist: Math.abs(e1 - P) / Math.abs(A.P) * 100};
 }
 
@@ -1487,8 +1489,8 @@ function composeCall(A, dir, sc, plan, coin){
   return {
     coin: coin || state.coin, tf: A.tf, price: A.P, dir, score, conf, thr, reasons: sc.reasons, plan, verdict, vsub, vclass, riskLevel,
     lev:`${minLev}x – ${maxLev}x`, conditions,
-    management: tr(`+1R (${oneR}): take 35 %, SL → entry · TP1: take 30 % · TP2: close the rest. Before CPI / FOMC: SL → entry.`,
-      `+1R (${oneR}): zober 35 %, SL → entry · TP1: zober 30 % · TP2: zvyšok zavri. Pred CPI / FOMC: SL → entry.`),
+    management: tr(`+1R (${oneR}): take 35 %, SL → entry · TP1: take 30 % · TP2: close the rest. Optional: at TP2 keep 15 % running towards TP3 ${fmt(plan.tp3)} with a stop 2 ATR behind price (tested: same result, smaller drawdown). Before CPI / FOMC: SL → entry.`,
+      `+1R (${oneR}): zober 35 %, SL → entry · TP1: zober 30 % · TP2: zvyšok zavri. Voliteľne: na TP2 nechaj 15 % bežať na TP3 ${fmt(plan.tp3)} so stopom 2 ATR za cenou (v teste rovnaký výsledok, menší prepad). Pred CPI / FOMC: SL → entry.`),
     invalidation: tr(`${TFLABEL[A.tf]} candle closes ${L?'below':'above'} ${fmt(plan.sl)} = setup is dead. Never move the stop further away.`,
       `${TFLABEL[A.tf]} sviečka zavrie ${L?'pod':'nad'} ${fmt(plan.sl)} = setup padol. Stop nikdy neposúvaj ďalej.`),
     time: Date.now(),
@@ -1631,6 +1633,7 @@ function setPriceLines(plan){
   state.priceLines = [];
   const add = (price, color, title, style=0) => state.priceLines.push(cSeries.createPriceLine({price, color, lineWidth:1, lineStyle:style, axisLabelVisible:true, title}));
   if(plan){
+    if(plan.tp3 != null) add(plan.tp3, 'rgba(80,210,193,.55)', 'TP3', 3);
     add(plan.tp2, '#50d2c1', 'TP2', 2); add(plan.tp1, '#50d2c1', 'TP1', 2);
     add(plan.e1, '#97fce4', 'Entry 1', 2); add(plan.e2, '#97fce4', 'Entry 2', 2);
     add(plan.sl, '#ed7088', 'Stop', 0);
@@ -1826,7 +1829,7 @@ chartEl.addEventListener('mouseleave', () => { if(chartTipOn){ hideTip(); chartT
 const TIPS = {
   verdict:['<b>Trade recommendation</b><br>TRADE IT = enough reasons and good R:R, you can place the orders.<br>WAIT = the setup is forming, not confirmed yet.<br>NO TRADE = no edge, stay out.','<b>Odporúčanie obchodu</b><br>OBCHODUJ = dosť dôvodov a dobré RR, môžeš zadať príkazy.<br>ČAKAJ = setup sa tvorí, ešte nie je potvrdený.<br>NEOBCHODUJ = žiadna výhoda, ostaň mimo.'],
   entries:['<b>Entry</b> = the price where you open the trade.<br><b>E1</b> = first limit order, 50 % of the size, at the edge of the zone.<br><b>E2</b> = second limit, the other 50 %, deeper in the zone (DCA). If price gets there, your average entry is better.','<b>Entry</b> = cena, kde otváraš obchod.<br><b>E1</b> = prvá limitka, 50 % veľkosti, na okraji zóny.<br><b>E2</b> = druhá limitka, zvyšných 50 %, hlbšie v zóne (DCA). Ak tam cena dôjde, máš lepší priemerný vstup.'],
-  tp:['<b>Take profit</b> = where you close in profit. TP1 closes part, TP2 the rest.<br><b>2.4R</b> = you make 2.4× what you risk.<br><b>·R</b> = no chart level there, the target is just a multiple of your risk (less reliable).','<b>Take profit</b> = kde zatváraš v zisku. TP1 zavrie časť, TP2 zvyšok.<br><b>2.4R</b> = zarobíš 2,4× toľko, koľko riskuješ.<br><b>·R</b> = na grafe tam nie je level, cieľ je len násobok rizika (menej spoľahlivé).'],
+  tp:['<b>Take profit</b> = where you close in profit. TP1 closes part, TP2 the rest.<br><b>2.4R</b> = you make 2.4× what you risk.<br><b>·R</b> = no chart level there, the target is just a multiple of your risk (less reliable).<br><b>TP3</b> = optional runner for a bigger move: the next chart level after TP2.','<b>Take profit</b> = kde zatváraš v zisku. TP1 zavrie časť, TP2 zvyšok.<br><b>2.4R</b> = zarobíš 2,4× toľko, koľko riskuješ.<br><b>·R</b> = na grafe tam nie je level, cieľ je len násobok rizika (menej spoľahlivé).<br><b>TP3</b> = voliteľný runner na väčší pohyb: ďalší level na grafe po TP2.'],
   sl:['<b>Stop loss</b> = where you exit with a small, planned loss if the idea is wrong. Put it on the exchange right away, every time.','<b>Stop loss</b> = kde vystúpiš s malou plánovanou stratou, ak sa mýliš. Daj ho na burzu hneď, vždy.'],
   rr:['<b>R</b> = the money you risk on one trade (from entry to stop). Risk $100 → 1R = $100.<br><b>3RR</b> = you can make $300 for $100 of risk.<br>Good trades usually have 2R or more, so one win pays for two losses.','<b>R</b> = peniaze, ktoré riskuješ v jednom obchode (od vstupu po stop). Riskuješ $100 → 1R = $100.<br><b>3RR</b> = za $100 rizika môžeš zarobiť $300.<br>Dobré obchody majú zvyčajne 2R a viac, takže jedna výhra zaplatí dve straty.'],
   conf:['<b>Confluence</b> = points from all indicators, zones and patterns added up. Reaching the VALID threshold (Settings → Risk) with R:R ≥ 2 gives TRADE IT.','<b>Konfluencia</b> = súčet bodov zo všetkých ukazovateľov, zón a patternov. Ak dosiahne hranicu VALID (Nastavenia → Riziko) a RR je aspoň 2, je to OBCHODUJ.'],
@@ -1885,10 +1888,11 @@ function renderCall(){
       <span class="k">${tr('Basis','Základ')}${tip('basis')}</span><span>${esc(p.basis)}${p.market ? ` <span class="muted">(E1 = market)</span>` : ''}</span>
     </div>
     ${entryNote(call)}
+    ${reliabilityNote(call)}
     ${macroWarn()}
     <div class="levels">
       <div class="lvl"><div class="t">📒 ENTRIES${tip('entries')}</div><div class="row"><span>${fmt(p.e1)}</span><small>E1 · 50 %</small></div><div class="row"><span>${fmt(p.e2)}</span><small>E2 · 50 % DCA</small></div></div>
-      <div class="lvl tp"><div class="t">🎯 TAKE PROFITS${tip('tp')}</div><div class="row"><span>${fmt(p.tp1)}</span><small>${p.rr1.toFixed(1)}R${p.tp1Lvl === false ? ' ·R' : ''}</small></div><div class="row"><span>${fmt(p.tp2)}</span><small>${p.rr2.toFixed(1)}R${p.tp2Lvl === false ? ' ·R' : ''}</small></div></div>
+      <div class="lvl tp"><div class="t">🎯 TAKE PROFITS${tip('tp')}</div><div class="row"><span>${fmt(p.tp1)}</span><small>${p.rr1.toFixed(1)}R${p.tp1Lvl === false ? ' ·R' : ''}</small></div><div class="row"><span>${fmt(p.tp2)}</span><small>${p.rr2.toFixed(1)}R${p.tp2Lvl === false ? ' ·R' : ''}</small></div>${p.tp3 != null ? `<div class="row" style="opacity:.75"><span>${fmt(p.tp3)}</span><small>TP3 · ${p.rr3.toFixed(1)}R${p.tp3Lvl === false ? ' ·R' : ''} · ${tr('runner','runner')}</small></div>` : ''}</div>
     </div>
     <div class="levels" style="grid-template-columns:1fr">
       <div class="lvl sl"><div class="t">🔻 STOPLOSS${tip('sl')}</div><div class="row"><span>${fmt(p.sl)}</span><small>-${p.slPct.toFixed(2)} % ${tr('from avg entry','od priem. vstupu')}</small></div></div>
@@ -1906,6 +1910,7 @@ function renderCall(){
       <button class="btn" id="bSave">📒 ${tr('Log call','Do denníka')}</button>
       <button class="btn" id="bAlert">🔔 ${tr('Alert at E1','Alert na E1')}</button>
       <button class="btn" id="bCopy">📋 ${tr('Copy','Kopírovať')}</button>
+      <button class="btn" data-ask="long">❓ ${tr('Go long?','Ísť long?')}</button><button class="btn" data-ask="short">❓ ${tr('Go short?','Ísť short?')}</button>
       ${state.ideaCall ? `<button class="btn" id="bBack">← ${tr('Bot call','Bot call')}</button>` : `<button class="btn" id="bFlip">${tr('Show','Ukáž')} ${long ? 'SHORT' : 'LONG'}</button>`}
     </div>`;
   $('#bSave').onclick = () => saveToJournal(call);
@@ -1918,6 +1923,20 @@ function renderCall(){
   if($('#bBack')) $('#bBack').onclick = () => { state.ideaCall = null; state.ideaActive = null; refreshPlanVisuals(); };
   renderCalc();
 }
+/* measured on 7 months x 60 coins (TRADE IT calls, ADX >= 20): how often the entry is reached and how often TP1 comes before the stop */
+function reliabilityNote(call){
+  if(call.vclass === 'no') return '';
+  const strong = call.score >= call.thr + 3, h = call.tf === '1h', hit = strong ? 55 : (h ? 47 : 50);
+  return `<div class="hint" style="margin:-2px 0 10px">📊 ${tr(
+    `<b>Track record of calls like this</b> (${TFLABEL[call.tf]}${strong ? ', strong' : ''}): price reaches the entry in about <b>1 of 3</b> calls, so most of them are a plan to wait for, not a must-trade. When it fills, TP1 comes before the stop in <b>~${hit} %</b>. Taking profit at +1R and moving the stop to entry is what makes that profitable.`,
+    `<b>Ako dopadali takéto calls</b> (${TFLABEL[call.tf]}${strong ? ', silný' : ''}): cena sa dostane na vstup asi pri <b>1 z 3</b> callov, takže väčšina je plán na čakanie, nie obchod za každú cenu. Keď sa vstup vyplní, TP1 príde skôr ako stop v <b>~${hit} %</b>. Do plusu to dostáva výber zisku na +1R a stop na vstup.`)}</div>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-ask]'); if(!b) return;
+  $('#ideaDir').value = b.dataset.ask; $('#ideaText').value = ''; $('#ideaEntry').value = '';
+  openTab('idea');
+  if(checkIdea()) setTimeout(() => $('#ideaOut').scrollIntoView({behavior:'smooth', block:'start'}), 50);
+});
 function entryNote(call){
   const p = call.plan, now = call.coin === state.coin && state.C.length ? state.C.at(-1).c : null;
   if(now == null) return '';
@@ -1938,7 +1957,7 @@ function copyCall(call){
   const p = call.plan;
   const txt = [
     `Ticker: ${call.coin}-USD (${TFLABEL[call.tf]})`, `Direction: ${call.dir === 'long' ? 'Long 🟢' : 'Short 🔴'}`, `Risk Level: ${call.riskLevel}`, `Leverage: ${call.lev}`, '',
-    '📒 Entries:', `└ ${fmt(p.e1)}`, `└ ${fmt(p.e2)}`, '', '🎯 Take Profits:', `└ ${fmt(p.tp1)}`, `└ ${fmt(p.tp2)}`, '',
+    '📒 Entries:', `└ ${fmt(p.e1)}`, `└ ${fmt(p.e2)}`, '', '🎯 Take Profits:', `└ ${fmt(p.tp1)}`, `└ ${fmt(p.tp2)}`, ...(p.tp3 != null ? [`└ ${fmt(p.tp3)} (runner)`] : []), '',
     `🔻 Stoploss: ${fmt(p.sl)}`, '', `Risk / Reward Ratio: ${p.rr2.toFixed(2)}RR`, '',
     tr('Why:','Prečo:'), ...call.reasons.filter(r => r.w > 0).map(r => `• ${r.txt}`), '', call.management,
   ].join('\n');
@@ -2135,7 +2154,7 @@ function checkIdea(){
   state.ideaActive = state.coin;
   refreshPlanVisuals();
   const other = scoreDir(A, dir === 'long' ? 'short' : 'long');
-  const pos = sc.reasons.filter(r => r.w > 0), neg = sc.reasons.filter(r => r.w <= 0), thr = +S().minScore;
+  const pos = sc.reasons.filter(r => r.w > 0), neg = sc.reasons.filter(r => r.w <= 0), thr = (+S().minScore || 9) + tfBonus(A.tf); // same bar as the call card (1h needs more)
   let head;
   if(sc.score >= thr) head = tr(`✅ <b>It checks out.</b> ${sc.score.toFixed(1)} confluence points. The technicals back you.`, `✅ <b>Sedí to.</b> ${sc.score.toFixed(1)} bodov konfluencie. Technika ťa podporuje.`);
   else if(sc.score >= thr - 3) head = tr(`🟡 <b>Partly.</b> ${sc.score.toFixed(1)} points: there is something, but it needs confirmation.`, `🟡 <b>Čiastočne.</b> ${sc.score.toFixed(1)} bodu: niečo tam je, ale chýba potvrdenie.`);
