@@ -84,8 +84,7 @@ function step(b, lo, hi, t){
     if(b.armed !== false && reach(b.tp1)){ finalize(b, 'missed'); return true; } return false;
   }
   if(against(b.sl)){ const be = b.r1; closeQty(b, b.qty, b.sl, FEE_T); finalize(b, be ? 'BE' : 'SL'); return true; }
-  if(!b.r1 && reach(b.oneR)){ closeQty(b, b.filledQty * 0.35, b.oneR, FEE_M); b.r1 = true; b.sl = b.avg; }
-  if(!b.t1 && reach(b.tp1)){ closeQty(b, b.filledQty * 0.30, b.tp1, FEE_M); b.t1 = true; if(!b.r1){ b.r1 = true; b.sl = b.avg; } }
+  if(!b.t1 && reach(b.tp1)){ closeQty(b, b.filledQty * 0.5, b.tp1, FEE_M); b.t1 = true; b.r1 = true; b.sl = b.avg; } // 50 % at TP1, stop to entry
   if(reach(b.tp2)){ closeQty(b, b.qty, b.tp2, FEE_M); finalize(b, 'TP2'); return true; }
   return false;
 }
@@ -197,7 +196,7 @@ async function main(){
           const A = E.analyze(C, resample(C, TFMS[HTF[tf]]), c, tf); A.btc = c.name === 'BTC' ? null : btc;
           const B = E.bestCall(A), p = B.plan, thr = CFG.minScore + E.tfBonus(tf);
           const tp1Passed = B.dir === 'long' ? A.P >= p.tp1 : A.P <= p.tp1;
-          if(B.sc.score >= thr && p.rr2 >= 2 && A.ind.adx != null && A.ind.adx >= CFG.adxMin && !tp1Passed)
+          if(B.sc.score >= thr && p.rr2 >= 2 && A.ind.adx != null && A.ind.adx >= CFG.adxMin && !tp1Passed && (!CFG.htfAlign || A.htf.score * (B.dir === 'long' ? 1 : -1) >= 1))
             picks.push({coin:c.name, tf, dir:B.dir, score:B.sc.score, margin:B.sc.score - thr, plan:p, price:A.P});
         }catch(e){ say(`scan ${c.name} ${tf}: ${e.message}`); }
       }
@@ -208,6 +207,7 @@ async function main(){
     for(const pk of picks){
       if(S.brackets.length >= CFG.maxPos) break;
       if(S.brackets.some(b => b.coin === pk.coin)) continue;
+      if(CFG.dirCap && S.brackets.filter(b => b.dir === pk.dir).length >= CFG.dirCap) continue; // max positions in one direction (correlated stop-outs)
       // same setup ended unfilled recently (missed / expired): wait one bar of that timeframe before trying it again
       if(S.history.some(h => h.coin === pk.coin && h.dir === pk.dir && h.tf === pk.tf && !h.filled && now - h.closed < TFMS[pk.tf])) continue;
       // 24h pause on a coin after a stop loss there (tested on 7 months: better in- and out-of-sample)

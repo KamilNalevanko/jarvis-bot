@@ -62,7 +62,7 @@ function view(coin, tf, t){
   const d = D[coin], ms = TFMS[tf], bar = Math.floor(t / ms) * ms;
   const C = d[tf].filter(c => c.t < bar).slice(-399);
   const part = d.m5.filter(c => c.t >= bar && c.t + 3e5 <= t);
-  if(part.length) C.push({t:bar, o:part[0].o, h:Math.max(...part.map(c => c.h)), l:Math.min(...part.map(c => c.l)), c:part.at(-1).c, v:part.reduce((a, c) => a + c.v, 0)});
+  if(part.length && !process.env.CLOSED) C.push({t:bar, o:part[0].o, h:Math.max(...part.map(c => c.h)), l:Math.min(...part.map(c => c.l)), c:part.at(-1).c, v:part.reduce((a, c) => a + c.v, 0)});
   return C;
 }
 
@@ -91,7 +91,7 @@ for(NOW = START; NOW <= END; NOW += 9e5){
           const An = E.analyze(C, resample(C, TFMS[HTF[tf]]), c, tf); An.btc = c.name === 'BTC' ? null : btc;
           const B = E.bestCall(An), p = B.plan, thr = CFG.minScore + E.tfBonus(tf);
           const tp1Passed = B.dir === 'long' ? An.P >= p.tp1 : An.P <= p.tp1;
-          if(B.sc.score >= thr && p.rr2 >= 2 && An.ind.adx != null && An.ind.adx >= CFG.adxMin && !tp1Passed)
+          if(B.sc.score >= thr && p.rr2 >= 2 && An.ind.adx != null && An.ind.adx >= CFG.adxMin && !tp1Passed && (!CFG.htfAlign || An.htf.score * (B.dir === 'long' ? 1 : -1) >= 1))
             picks.push({coin:c.name, tf, dir:B.dir, score:B.sc.score, margin:B.sc.score - thr, plan:p, price:An.P});
         }catch(e){}
       }
@@ -100,6 +100,7 @@ for(NOW = START; NOW <= END; NOW += 9e5){
     for(const pk of picks){
       if(S.brackets.length >= CFG.maxPos) break;
       if(S.brackets.some(b => b.coin === pk.coin)) continue;
+      if(CFG.dirCap && S.brackets.filter(b => b.dir === pk.dir).length >= CFG.dirCap) continue; // max positions in one direction (correlated stop-outs)
       if(S.history.some(h => h.coin === pk.coin && h.dir === pk.dir && h.tf === pk.tf && !h.filled && NOW - h.closed < TFMS[pk.tf])) continue;
       if(S.history.some(h => h.coin === pk.coin && h.reason === 'SL' && NOW - h.closed < (CFG.slPauseH ?? 24) * 36e5)) continue;
       const p = pk.plan, riskUsd = A.equityNow() * CFG.risk / 100, qty = riskUsd / Math.abs(p.avg - p.sl);
@@ -124,6 +125,6 @@ const lines = [
   ...S.history.slice().reverse().map(h => `| ${new Date(h.closed).toISOString().slice(5, 16).replace('T', ' ')} | ${h.coin} | ${h.dir} | ${h.tf} | ${h.reason} | ${h.filled ? h.pnl.toFixed(2) : '–'} | ${h.filled ? h.R.toFixed(2) : '–'} |`),
   ``, `Open now: ${S.brackets.map(b => `${b.coin} ${b.tf} ${b.dir} (${b.filledQty ? 'filled, ' + (b.realized >= 0 ? '+' : '') + b.realized.toFixed(2) + ' realized' : 'waiting'})`).join(', ') || 'none'}`,
   ``, '```', ...out, '```'];
-fs.writeFileSync('REPLAY.md', lines.join('\n'));
+fs.writeFileSync(process.env.OUT || 'REPLAY.md', lines.join('\n'));
 fs.writeFileSync('replay-equity.json', JSON.stringify(eqCurve));
 console.log(lines.slice(0, 4).join('\n'));

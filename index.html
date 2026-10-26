@@ -128,7 +128,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel2)}
 .verdict{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-radius:10px;margin-bottom:10px;font-weight:800;font-size:17px;letter-spacing:.3px}
 .verdict small{display:block;font-size:11px;font-weight:700;letter-spacing:.9px;opacity:.75;margin-bottom:3px}
 .verdict .badge{font-size:13px;padding:5px 11px}
-.vsub{color:var(--muted);margin:-2px 0 12px;line-height:1.45}
+.vsub{color:var(--text);opacity:.88;margin:-2px 0 12px;line-height:1.45}
 .verdict.valid{background:rgba(80,210,193,.12);color:var(--mint);border:1px solid rgba(80,210,193,.35)}
 .verdict.watch{background:rgba(240,185,90,.10);color:var(--amber);border:1px solid rgba(240,185,90,.3)}
 .verdict.no{background:rgba(237,112,136,.10);color:var(--red);border:1px solid rgba(237,112,136,.3)}
@@ -140,7 +140,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel2)}
 .mtf span{padding:4px 8px;border-radius:5px;background:var(--panel2);font-family:var(--mono);font-size:11px;border:1px solid var(--line)}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin-bottom:14px}
 .kv .k{color:var(--muted);font-weight:600}
-.levels{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.levels{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-bottom:12px}
 .lvl{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px}
 .lvl .t{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:6px}
 .lvl .row{display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-family:var(--mono);font-size:16px;font-weight:600;padding:3px 0}
@@ -192,6 +192,10 @@ label.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tex
 .empty{color:var(--muted);padding:18px 0;text-align:center}
 .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line2);border-top-color:var(--mint);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
+.mnav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border-top:1px solid var(--line);padding:6px max(6px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}
+.mnav button{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--muted);padding:4px 0}
+.mnav button b{font-size:18px;font-weight:400;line-height:1}
+.mnav button.on{color:var(--mint)}
 .toast{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line2);padding:10px 16px;border-radius:8px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none;max-width:calc(100vw - 32px)}
 .toast.on{opacity:1}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;place-items:center;z-index:50;padding:16px}
@@ -273,6 +277,18 @@ header,.side,.bottom,.modal .box,.toast,.legend,.scrollhint{zoom:var(--ui,1)}
   .crow > :nth-child(5){display:none}
   td,th{padding:6px}
   .row2{grid-template-columns:1fr}
+  header{position:static}
+  .chartwrap{height:min(52vh,420px)}
+  .tabs{flex-wrap:wrap;padding:4px 8px;gap:0}
+  .tabs button{padding:8px 9px;font-size:13px}
+  #topCard td:nth-child(5){display:none}
+  .card .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .card .btnrow .btn{justify-content:center;text-align:center}
+  .lvl{min-width:0}
+  .mnav{display:flex}
+  #viewBar{position:static!important;font-size:12px;padding:6px 12px!important;gap:8px!important}
+  body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+  .toast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 }
 @media (prefers-reduced-motion:reduce){ .logo .dot,.spin{animation:none} }
 </style>
@@ -454,6 +470,14 @@ header,.side,.bottom,.modal .box,.toast,.legend,.scrollhint{zoom:var(--ui,1)}
     <div class="disc" data-i18n="disc"></div>
   </aside>
 </main>
+<nav class="mnav" id="mnav">
+  <button data-go="chart"><b>📈</b><span data-i18n="navChart"></span></button>
+  <button data-go="call"><b>🎯</b><span data-i18n="navCall"></span></button>
+  <button data-go="top"><b>🔥</b><span data-i18n="navTop"></span></button>
+  <button data-go="trades"><b>💼</b><span data-i18n="navTrades"></span></button>
+  <button data-go="demo"><b>🧪</b><span data-i18n="navDemo"></span></button>
+  <button data-go="idea"><b>☰</b><span data-i18n="navMore"></span></button>
+</nav>
 
 <!-- settings -->
 <div class="modal" id="mSettings">
@@ -613,7 +637,7 @@ const COLORS = ['#97fce4','#f0b95a','#a78bfa','#ed7088','#50d2c1','#7cc4ff'];
 const DEF_SETTINGS = {lang:'en', account:1000, risk:1, maxLev:25, minScore:9, coin:'BTC', tf:'1h', favs:['BTC','ETH','SOL','HYPE'],
   alerts:false, sound:true, scanMin:10, showVP:true, showZones:true, showEMA:true, showBox:true, aiKey:'',
   showInd:true, indOpen:false, showWhy:true, whyOpen:true, showCalc:true, showAI:true, uiScale:1, aiModel:'claude-haiku-5-5', aiNews:true, showPatterns:true, showMacro:true, adxMin:20};
-const DEF_AUTO = {on:false, risk:1, maxPos:5, dayLoss:3, minScore:9, tf:'4h+1h', every:15, v2:1}; // research: 4h >= 9 + 1h >= 11, ADX >= 20, max 5 open
+const DEF_AUTO = {on:false, risk:1, maxPos:3, dirCap:2, dayLoss:3, minScore:9, tf:'4h', every:15, v2:1, v3:1}; // honest research (4h walked on 1h candles): 4h >= 9, daily trend on your side, ADX >= 20, max 3 open, max 2 one way
 function newPaper(bal){ bal = bal || 10000; return {start:bal, balance:bal, brackets:[], history:[], auto:{...DEF_AUTO}, created:Date.now()}; }
 let profiles = loadJSON('jv_profiles', null);
 function newProfile(name){
@@ -631,9 +655,10 @@ if(!Array.isArray(profiles) || !profiles.length){
   if(Array.isArray(of)) p.settings.favs = of;
   profiles = [p];
 }
-profiles.forEach(p => { p.settings = {...DEF_SETTINGS, ...(p.settings || {})}; p.journal ||= []; p.trades ||= []; p.priceAlerts ||= []; p.paper ||= newPaper(); const oldAuto = !p.paper.auto?.v2; p.paper.auto = {...DEF_AUTO, ...(p.paper.auto || {})}; p.paper.brackets ||= []; p.paper.history ||= [];
+profiles.forEach(p => { p.settings = {...DEF_SETTINGS, ...(p.settings || {})}; p.journal ||= []; p.trades ||= []; p.priceAlerts ||= []; p.paper ||= newPaper(); const oldAuto = !p.paper.auto?.v2, oldV3 = !p.paper.auto?.v3; p.paper.auto = {...DEF_AUTO, ...(p.paper.auto || {})}; p.paper.brackets ||= []; p.paper.history ||= [];
   if(!p.settings.v2){ if(p.settings.minScore <= 8) p.settings.minScore = 9; p.settings.adxMin = 20; p.settings.v2 = 1; } // move old defaults to the researched ones
   if(oldAuto) p.paper.auto = {...p.paper.auto, tf:'4h+1h', minScore:9, maxPos:5, dayLoss:3, every:15, v2:1};
+  if(oldV3) p.paper.auto = {...p.paper.auto, tf:'4h', maxPos:3, dirCap:2, v3:1}; // 1h had no edge once candles were simulated honestly
 });
 let activeId = loadJSON('jv_active', profiles[0].id);
 if(!profiles.some(p => p.id === activeId)) activeId = profiles[0].id;
@@ -661,6 +686,7 @@ const I18N = {
   settings:['⚙ Settings','⚙ Nastavenia'], analyze:['Analyze','Analyzovať'], vol24:['24h volume','24h objem'],
   search:['Search coin… (SOL, HYPE, PEPE…)','Hľadaj coin… (SOL, HYPE, PEPE…)'],
   fAll:['All','Všetky'], fFav:['⭐ Favorites','⭐ Obľúbené'], fGain:['🚀 Top gainers','🚀 Top rast'], fLose:['📉 Top losers','📉 Top pád'],
+  navChart:['Chart','Graf'], navCall:['Call','Call'], navTop:['Top','Top'], navTrades:['Trades','Obchody'], navDemo:['Demo','Demo'], navMore:['More','Viac'],
   tabIdea:['💡 My idea','💡 Moja idea'], tabScan:['🔎 Scanner','🔎 Scanner'], tabTrades:['💼 My trades','💼 Moje trady'], tabCalls:['📒 Call log','📒 Denník callov'], tabLive:['🔔 Alerts','🔔 Alerty'],
   ideaPh:['Write your idea, e.g. "I think BTC sweeps 80k, grabs the stops and bounces to 84k."','Napíš svoj nápad, napr.: „Myslím, že BTC sweepne 80k, zoberie stopky a odrazí sa hore na 84k.“'],
   direction:['Direction','Smer'], dirAuto:['Detect from text','Rozpoznať z textu'], entryOpt:['Entry (optional)','Vstup (nepovinné)'],
@@ -696,7 +722,7 @@ const I18N = {
   tabDemo:['🧪 Demo','🧪 Demo'], autoTitle:['🤖 AI Autopilot (demo money)','🤖 AI Autopilot (demo peniaze)'],
   aRisk:['Risk / trade (%)','Risk / obchod (%)'], aMax:['Max open positions','Max otvorených pozícií'], aDay:['Daily loss stop (%)','Denný stop straty (%)'],
   aMin:['Min. score','Min. skóre'], aEvery:['Scan every','Skenovať každých'],
-  autoHint:['Takes only VALID calls from the top 30 coins, sizes each trade by risk % of demo equity, max 1 position per coin, stops for the day after the daily loss limit, and manages exits like Cryptex: 35 % at +1R and SL to entry, 30 % at TP1, the rest at TP2. Runs while this page is open.','Berie len VALID cally z top 30 coinov, veľkosť každého obchodu ráta z risk % demo kapitálu, max 1 pozícia na coin, po dennom limite straty na zvyšok dňa stopne a výstupy riadi ako Cryptex: 35 % na +1R a SL na entry, 30 % na TP1, zvyšok na TP2. Beží, kým je stránka otvorená.'],
+  autoHint:['Takes only VALID calls from the top 30 coins, sizes each trade by risk % of demo equity, max 1 position per coin, stops for the day after the daily loss limit, and manages exits the tested way: 50 % at TP1 and the stop to entry, the rest at TP2. Runs while this page is open.','Berie len VALID cally z top 30 coinov, veľkosť každého obchodu ráta z risk % demo kapitálu, max 1 pozícia na coin, po dennom limite straty na zvyšok dňa stopne a výstupy riadi ako Cryptex: 35 % na +1R a SL na entry, 30 % na TP1, zvyšok na TP2. Beží, kým je stránka otvorená.'],
   aiModel:['AI model','AI model'], aiNews:['Search the web for news (adds ~1–3 ¢ per answer)','Hľadať správy na webe (pridá ~1–3 ¢ na odpoveď)'],
   aiCost:['You pay Anthropic directly per answer (prepaid credit at console.anthropic.com, e.g. $5 lasts for hundreds of Haiku answers). No subscription.','Platíš priamo Anthropicu za odpoveď (predplatený kredit na console.anthropic.com, napr. $5 vydrží na stovky odpovedí s Haiku). Žiadne predplatné.'],
   tabReal:['💰 Live (Hyperliquid)','💰 Live (Hyperliquid)'],
@@ -706,7 +732,7 @@ const I18N = {
   hlMax:['Max position size per trade ($)','Max. veľkosť pozície na obchod ($)'], hlTest:['Test connection','Otestovať pripojenie'],
   hlSteps:['1. Open <code>app.hyperliquid.xyz/API</code> (testnet: <code>app.hyperliquid-testnet.xyz/API</code>) and connect your wallet.<br>2. Generate an API wallet, authorize it, copy its <b>private key</b>.<br>3. Paste your <b>main wallet address</b> and the API wallet key here, press Test connection.<br>The key is never synced, exported or sent anywhere. It only signs orders inside this browser.','1. Otvor <code>app.hyperliquid.xyz/API</code> (testnet: <code>app.hyperliquid-testnet.xyz/API</code>) a pripoj peňaženku.<br>2. Vygeneruj API wallet, autorizuj ho a skopíruj jeho <b>private key</b>.<br>3. Vlož sem <b>adresu hlavnej peňaženky</b> a kľúč API walletu, stlač Otestovať pripojenie.<br>Kľúč sa nikdy nesynchronizuje, neexportuje ani nikam neposiela. Len podpisuje príkazy v tomto prehliadači.'],
   tabBt:['📊 Backtest','📊 Backtest'], btScope:['Coins','Coiny'], btThis:['This coin','Tento coin'], btRun:['Run backtest','Spustiť backtest'], btStop:['Stop','Zastaviť'],
-  btHint:['Replays J.A.R.V.I.S.\'s exact rules over the past (up to 5,000 candles from Hyperliquid): at every candle it builds the call from data known at that moment, takes only TRADE IT setups, places E1/E2, SL and TPs and manages them like the demo (35 % at +1R and SL to entry, 30 % at TP1, rest at TP2, fees included). Results are in R, so they don\'t depend on account size.','Prehrá presné pravidlá J.A.R.V.I.S.a na minulosti (až 5 000 sviečok z Hyperliquidu): na každej sviečke postaví call len z dát známych v tej chvíli, berie len OBCHODUJ setupy, dá E1/E2, SL aj TP a riadi ich ako demo (35 % na +1R a SL na entry, 30 % na TP1, zvyšok na TP2, s poplatkami). Výsledky sú v R, takže nezávisia od veľkosti účtu.'],
+  btHint:['Replays J.A.R.V.I.S.\'s exact rules over the past (up to 5,000 candles from Hyperliquid): at every candle it builds the call from data known at that moment, takes only TRADE IT setups, places E1/E2, SL and TPs and manages them like the demo (50 % at TP1 and SL to entry, rest at TP2, fees included; a target only counts from the candle after the fill). Results are in R, so they don\'t depend on account size.','Prehrá presné pravidlá J.A.R.V.I.S.a na minulosti (až 5 000 sviečok z Hyperliquidu): na každej sviečke postaví call len z dát známych v tej chvíli, berie len OBCHODUJ setupy, dá E1/E2, SL aj TP a riadi ich ako demo (50 % na TP1 a SL na entry, zvyšok na TP2, s poplatkami; cieľ sa počíta až od sviečky po vyplnení). Výsledky sú v R, takže nezávisia od veľkosti účtu.'],
   btTrades:['Trades','Obchody'], btAvgR:['Avg R','Priem. R'], btTotalR:['Total R','Spolu R'], btList:['Last trades','Posledné obchody'],
   showPat:['Chart patterns (wedges, triangles)','Formácie (kliny, trojuholníky)'], macroTitle:['📅 Macro this week (USD)','📅 Makro tento týždeň (USD)'],
   topTitle:['Top setups now','Top setupy teraz'],
@@ -1467,12 +1493,18 @@ function composeCall(A, dir, sc, plan, coin){
   const score = sc.score, conf = Math.max(0, Math.min(100, score/16*100));
   let verdict, vclass;
   const adxMin = +S().adxMin || 0, trendOk = !adxMin || (A.ind.adx != null && A.ind.adx >= adxMin);
-  if(score >= thr && plan.rr2 >= 2 && trendOk){ verdict = tr('TRADE IT', 'OBCHODUJ'); vclass = 'valid'; }
+  const htfOk = A.htf.score * s >= 1; // tested: only setups with the higher timeframe on their side kept an edge
+  if(score >= thr && plan.rr2 >= 2 && trendOk && htfOk){ verdict = tr('TRADE IT', 'OBCHODUJ'); vclass = 'valid'; }
   else if(score >= thr - 3){ verdict = tr('WAIT', 'ČAKAJ'); vclass = 'watch'; }
   else { verdict = tr('NO TRADE', 'NEOBCHODUJ'); vclass = 'no'; }
-  const vsub = {valid:tr('Valid setup: enough confluence and good R:R. Place the orders below.', 'Platný setup: dosť dôvodov a dobré RR. Zadaj príkazy nižšie.'),
-    watch:tr('Watchlist: the setup is forming but not confirmed. Don\'t enter yet.', 'Watchlist: setup sa tvorí, ale nie je potvrdený. Zatiaľ nevstupuj.'),
-    no:tr('No edge right now. Sitting out is a position too.', 'Teraz tu nie je výhoda. Nečinnosť je tiež pozícia.')}[vclass];
+  // one plain sentence: what to do right now, with the actual numbers
+  const where = plan.market ? '' : tr(` (${plan.dist.toFixed(1)} % ${plan.e1 < A.P ? 'below' : 'above'} the price)`, ` (${plan.dist.toFixed(1)} % ${plan.e1 < A.P ? 'pod' : 'nad'} cenou)`);
+  const vsub = {
+    valid: plan.market
+      ? tr(`<b>Enter now:</b> price is in the zone. Stop ${fmt(plan.sl)}, first target ${fmt(plan.tp1)}.`, `<b>Vstup teraz:</b> cena je v zóne. Stop ${fmt(plan.sl)}, prvý cieľ ${fmt(plan.tp1)}.`)
+      : tr(`<b>Place a limit at ${fmt(plan.e1)}</b>${where} and wait for price to come to you. Stop ${fmt(plan.sl)}, first target ${fmt(plan.tp1)}.`, `<b>Zadaj limitku na ${fmt(plan.e1)}</b>${where} a počkaj, kým tam cena príde. Stop ${fmt(plan.sl)}, prvý cieľ ${fmt(plan.tp1)}.`),
+    watch: tr(`<b>Don't enter yet.</b> Watch ${fmt(plan.e1)}${where}. Missing: ${'{MISSING}'}.`, `<b>Zatiaľ nevstupuj.</b> Sleduj ${fmt(plan.e1)}${where}. Chýba: ${'{MISSING}'}.`),
+    no: tr('<b>Do nothing now.</b> No edge on this side. Sitting out is a position too.', '<b>Teraz nerob nič.</b> Na tejto strane nie je výhoda. Nečinnosť je tiež pozícia.')}[vclass];
   let risk = score >= thr + 2 ? 'low' : score >= thr - 1.5 ? 'mid' : 'high';
   if(A.htf.score * s <= -2) risk = 'high';
   const riskLevel = {low:tr('Low risk','Nízke riziko') + ' 👌', mid:tr('Moderate risk','Stredné riziko') + ' ✋', high:tr('High risk','Vysoké riziko') + ' ⚠️'}[risk];
@@ -1482,15 +1514,16 @@ function composeCall(A, dir, sc, plan, coin){
   if(vclass !== 'valid'){
     if(!sw) conditions.push(tr(`wait for a sweep of the ${L?'low':'high'} or a zone test`, `počkaj na sweep ${L?'lowu':'highu'} alebo test zóny`));
     if(!pats.length) conditions.push(tr(`wait for a confirmation candle (${L?'bullish engulfing / pin bar':'bearish engulfing / shooting star'}) on ${TFLABEL[A.tf]}`, `počkaj na potvrdzujúcu sviečku (${L?'bullish engulfing / pinbar':'bearish engulfing / shooting star'}) na ${TFLABEL[A.tf]}`));
+    if(!htfOk) conditions.push(tr(`the ${TFLABEL[A.htfTf]} trend is not on your side yet (trade with the bigger trend)`, `trend na ${TFLABEL[A.htfTf]} zatiaľ nejde tvojím smerom (obchoduj s väčším trendom)`));
     if(plan.rr2 < 2) conditions.push(tr('R:R is weak, look for a better entry', 'RR je slabé, hľadaj lepší vstup'));
     if(!trendOk) conditions.push(tr(`no real trend yet (ADX ${A.ind.adx != null ? A.ind.adx.toFixed(0) : '–'} < ${adxMin}), setups without a trend fail more often`, `zatiaľ chýba skutočný trend (ADX ${A.ind.adx != null ? A.ind.adx.toFixed(0) : '–'} < ${adxMin}), setupy bez trendu častejšie zlyhajú`));
   }
   const oneR = fmt(plan.avg + s*Math.abs(plan.avg - plan.sl)), hard = fmt(plan.sl - s*0.5*A.atr);
   return {
-    coin: coin || state.coin, tf: A.tf, price: A.P, dir, score, conf, thr, reasons: sc.reasons, plan, verdict, vsub, vclass, riskLevel,
+    coin: coin || state.coin, tf: A.tf, price: A.P, dir, score, conf, thr, reasons: sc.reasons, plan, verdict, vsub: vsub.replace('{MISSING}', conditions[0] || tr('more confluence', 'viac dôvodov')), vclass, riskLevel,
     lev:`${minLev}x – ${maxLev}x`, conditions,
-    management: tr(`+1R (${oneR}): take 35 %, SL → entry · TP1: take 30 % · TP2: close the rest. Optional: at TP2 keep 15 % running towards TP3 ${fmt(plan.tp3)} with a stop 2 ATR behind price (tested: same result, smaller drawdown). Before CPI / FOMC: SL → entry.`,
-      `+1R (${oneR}): zober 35 %, SL → entry · TP1: zober 30 % · TP2: zvyšok zavri. Voliteľne: na TP2 nechaj 15 % bežať na TP3 ${fmt(plan.tp3)} so stopom 2 ATR za cenou (v teste rovnaký výsledok, menší prepad). Pred CPI / FOMC: SL → entry.`),
+    management: tr(`TP1 ${fmt(plan.tp1)}: take 50 % and move the stop to entry (${fmt(plan.avg)}), from then on the trade cannot lose · TP2 ${fmt(plan.tp2)}: close the rest. Optional: keep a small part running towards TP3 ${fmt(plan.tp3)}. Before CPI / FOMC: stop to entry.`,
+      `TP1 ${fmt(plan.tp1)}: zober 50 % a posuň stop na vstup (${fmt(plan.avg)}), odvtedy obchod nemôže skončiť v strate · TP2 ${fmt(plan.tp2)}: zvyšok zavri. Voliteľne: malú časť nechaj bežať na TP3 ${fmt(plan.tp3)}. Pred CPI / FOMC: stop na vstup.`),
     invalidation: tr(`${TFLABEL[A.tf]} candle closes ${L?'below':'above'} ${fmt(plan.sl)} = setup is dead. Never move the stop further away.`,
       `${TFLABEL[A.tf]} sviečka zavrie ${L?'pod':'nad'} ${fmt(plan.sl)} = setup padol. Stop nikdy neposúvaj ďalej.`),
     time: Date.now(),
@@ -1631,7 +1664,7 @@ function setMarkers(A){
 function setPriceLines(plan){
   state.priceLines.forEach(l => cSeries.removePriceLine(l));
   state.priceLines = [];
-  const add = (price, color, title, style=0) => state.priceLines.push(cSeries.createPriceLine({price, color, lineWidth:1, lineStyle:style, axisLabelVisible:true, title}));
+  const add = (price, color, title, style=0) => state.priceLines.push(cSeries.createPriceLine({price, color, lineWidth:1, lineStyle:style, axisLabelVisible:true, title: innerWidth <= 640 ? '' : title}));
   if(plan){
     if(plan.tp3 != null) add(plan.tp3, 'rgba(80,210,193,.55)', 'TP3', 3);
     add(plan.tp2, '#50d2c1', 'TP2', 2); add(plan.tp1, '#50d2c1', 'TP1', 2);
@@ -1891,8 +1924,8 @@ function renderCall(){
     ${reliabilityNote(call)}
     ${macroWarn()}
     <div class="levels">
-      <div class="lvl"><div class="t">📒 ENTRIES${tip('entries')}</div><div class="row"><span>${fmt(p.e1)}</span><small>E1 · 50 %</small></div><div class="row"><span>${fmt(p.e2)}</span><small>E2 · 50 % DCA</small></div></div>
-      <div class="lvl tp"><div class="t">🎯 TAKE PROFITS${tip('tp')}</div><div class="row"><span>${fmt(p.tp1)}</span><small>${p.rr1.toFixed(1)}R${p.tp1Lvl === false ? ' ·R' : ''}</small></div><div class="row"><span>${fmt(p.tp2)}</span><small>${p.rr2.toFixed(1)}R${p.tp2Lvl === false ? ' ·R' : ''}</small></div>${p.tp3 != null ? `<div class="row" style="opacity:.75"><span>${fmt(p.tp3)}</span><small>TP3 · ${p.rr3.toFixed(1)}R${p.tp3Lvl === false ? ' ·R' : ''} · ${tr('runner','runner')}</small></div>` : ''}</div>
+      <div class="lvl"><div class="t">📒 ENTRIES${tip('entries')}</div><div class="row"><span>${fmt(p.e1)}</span><small>E1 · 50&nbsp;%</small></div><div class="row"><span>${fmt(p.e2)}</span><small>E2 · 50&nbsp;%</small></div></div>
+      <div class="lvl tp"><div class="t">🎯 TAKE PROFITS${tip('tp')}</div><div class="row"><span>${fmt(p.tp1)}</span><small>${p.rr1.toFixed(1)}R${p.tp1Lvl === false ? ' ·R' : ''}</small></div><div class="row"><span>${fmt(p.tp2)}</span><small>${p.rr2.toFixed(1)}R${p.tp2Lvl === false ? ' ·R' : ''}</small></div>${p.tp3 != null ? `<div class="row" style="opacity:.75"><span>${fmt(p.tp3)}</span><small>TP3 · ${p.rr3.toFixed(1)}R${p.tp3Lvl === false ? ' ·R' : ''}</small></div>` : ''}</div>
     </div>
     <div class="levels" style="grid-template-columns:1fr">
       <div class="lvl sl"><div class="t">🔻 STOPLOSS${tip('sl')}</div><div class="row"><span>${fmt(p.sl)}</span><small>-${p.slPct.toFixed(2)} % ${tr('from avg entry','od priem. vstupu')}</small></div></div>
@@ -1926,10 +1959,12 @@ function renderCall(){
 /* measured on 7 months x 60 coins (TRADE IT calls, ADX >= 20): how often the entry is reached and how often TP1 comes before the stop */
 function reliabilityNote(call){
   if(call.vclass === 'no') return '';
-  const strong = call.score >= call.thr + 3, h = call.tf === '1h', hit = strong ? 55 : (h ? 47 : 50);
+  if(call.tf !== '4h') return `<div class="hint" style="margin:-2px 0 10px">📊 ${tr(
+    `<b>Track record:</b> on ${TFLABEL[call.tf]} these setups showed <b>no reliable edge</b> in an honest test. Use ${TFLABEL[call.tf]} for timing and take the trade only when 4h agrees.`,
+    `<b>Ako dopadali:</b> na ${TFLABEL[call.tf]} tieto setupy v poctivom teste <b>nemali spoľahlivú výhodu</b>. ${TFLABEL[call.tf]} ber ako načasovanie a obchod ber, len keď súhlasí 4h.`)}</div>`;
   return `<div class="hint" style="margin:-2px 0 10px">📊 ${tr(
-    `<b>Track record of calls like this</b> (${TFLABEL[call.tf]}${strong ? ', strong' : ''}): price reaches the entry in about <b>1 of 3</b> calls, so most of them are a plan to wait for, not a must-trade. When it fills, TP1 comes before the stop in <b>~${hit} %</b>. Taking profit at +1R and moving the stop to entry is what makes that profitable.`,
-    `<b>Ako dopadali takéto calls</b> (${TFLABEL[call.tf]}${strong ? ', silný' : ''}): cena sa dostane na vstup asi pri <b>1 z 3</b> callov, takže väčšina je plán na čakanie, nie obchod za každú cenu. Keď sa vstup vyplní, TP1 príde skôr ako stop v <b>~${hit} %</b>. Do plusu to dostáva výber zisku na +1R a stop na vstup.`)}</div>`;
+    `<b>Track record of 4h calls</b> (7 months, 30 coins, honest test): price reaches the entry in about <b>3 of 10</b> calls, so most of them are a plan to wait for, not a must-trade. When it fills, TP1 comes before the stop in <b>~47 %</b>. The small edge comes from trading with the daily trend, taking 50 % at TP1 and moving the stop to entry. Expect long losing streaks.`,
+    `<b>Ako dopadali 4h calls</b> (7 mesiacov, 30 coinov, poctivý test): cena sa dostane na vstup asi pri <b>3 z 10</b> callov, takže väčšina je plán na čakanie, nie obchod za každú cenu. Keď sa vstup vyplní, TP1 príde skôr ako stop v <b>~47 %</b>. Malú výhodu dáva obchodovanie s denným trendom, výber 50 % na TP1 a stop na vstup. Počítaj aj s dlhšími sériami strát.`)}</div>`;
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-ask]'); if(!b) return;
@@ -2552,8 +2587,7 @@ function stepBracket(b, lo, hi, t){
     if(b.armed !== false && reach(b.tp1)){ finalize(b, 'missed'); return true; } return false;
   }
   if(against(b.sl)){ const be = b.r1; closeQty(b, b.qty, b.sl, FEE_TAKER); finalize(b, be ? 'BE' : 'SL'); return true; } // stop checked first = conservative
-  if(!b.r1 && reach(b.oneR)){ closeQty(b, b.filledQty * 0.35, b.oneR, FEE_MAKER); b.r1 = true; b.sl = b.avg; }
-  if(!b.t1 && reach(b.tp1)){ closeQty(b, b.filledQty * 0.30, b.tp1, FEE_MAKER); b.t1 = true; if(!b.r1){ b.r1 = true; b.sl = b.avg; } }
+  if(!b.t1 && reach(b.tp1)){ closeQty(b, b.filledQty * 0.5, b.tp1, FEE_MAKER); b.t1 = true; b.r1 = true; b.sl = b.avg; } // 50 % at TP1, stop to entry (honest test: better than 35/30/35)
   if(reach(b.tp2)){ closeQty(b, b.qty, b.tp2, FEE_MAKER); finalize(b, 'TP2'); return true; }
   return false;
 }
@@ -2688,6 +2722,7 @@ async function autoRun(){
     let opened = 0;
     for(const c of picks){
       if(PP().brackets.length >= a.maxPos) break; if(PP().brackets.some(b => b.coin === c.coin)) continue;
+      if(PP().brackets.filter(b => b.dir === c.dir).length >= (a.dirCap || 2)) continue; // max 2 positions one way: correlated stop-outs
       if(PP().history.some(h => h.coin === c.coin && h.reason === 'SL' && Date.now() - h.closed < 864e5)) continue; // 24h pause on a coin after its stop loss (helps in- and out-of-sample)
       const nb = openPaper(c, 'auto'); if(!nb) continue; opened++;
       if(a.liveTestnet) await autoLiveTestnet(c, nb);
@@ -2712,7 +2747,7 @@ function loadAutoUI(){
   $('#aMin').value = a.minScore; $('#aTf').value = a.tf; $('#aEvery').value = String(a.every); $('#aLive').checked = !!a.liveTestnet;
 }
 $('#aPreset').onclick = () => { // research-backed settings
-  const a = PP().auto; Object.assign(a, {risk:1, maxPos:5, dayLoss:3, minScore:9, tf:'4h+1h', every:15});
+  const a = PP().auto; Object.assign(a, {risk:1, maxPos:3, dirCap:2, dayLoss:3, minScore:9, tf:'4h', every:15});
   loadAutoUI(); persist(); if(a.on) setAuto(true);
   toast(tr('Recommended autopilot settings applied', 'Nastavené odporúčané hodnoty autopilota'));
 };
@@ -3048,11 +3083,12 @@ function simTrade(plan, dir, C, i0, maxWait){ // same exits as the demo, PnL in 
   for(let j = i0 + 1; j < C.length; j++){
     const c = C[j], reach = px => L ? c.h >= px : c.l <= px, against = px => L ? c.l <= px : c.h >= px;
     if(filled === 0 && j - i0 > maxWait) return {R:0, reason:'expired', j, filled:false};
+    const before = filled;
     if(!r1) for(const leg of legs) if(!leg.f && against(leg.px)) fill(leg);
     if(filled === 0){ if(reach(plan.tp1)) return {R:0, reason:'missed', j, filled:false}; continue; }
     if(against(sl)){ const be = r1; close(qty, sl, FEE_TAKER); return {R:pnl, reason: be ? 'BE' : 'SL', j, filled:true}; } // stop first = conservative
-    if(!r1 && reach(oneR)){ close(filled * 0.35, oneR, FEE_MAKER); r1 = true; sl = avg; }
-    if(!t1 && reach(plan.tp1)){ close(filled * 0.30, plan.tp1, FEE_MAKER); t1 = true; if(!r1){ r1 = true; sl = avg; } }
+    if(before === 0) continue; // filled in this candle: we can't know if the target came first, so targets count from the next candle
+    if(!t1 && reach(plan.tp1)){ close(filled * 0.5, plan.tp1, FEE_MAKER); t1 = true; r1 = true; sl = avg; }
     if(reach(plan.tp2)){ close(qty, plan.tp2, FEE_MAKER); return {R:pnl, reason:'TP2', j, filled:true}; }
   }
   if(filled === 0) return {R:0, reason:'open', j:C.length - 1, filled:false};
@@ -3671,6 +3707,15 @@ function setCoin(c){
 $('#tfs').addEventListener('click', e => {
   const b = e.target.closest('button[data-tf]'); if(!b) return;
   state.tf = b.dataset.tf; S().tf = state.tf; persist(); syncCoinUI(); load();
+});
+$('#mnav').addEventListener('click', e => {
+  const b = e.target.closest('[data-go]'); if(!b) return;
+  const g = b.dataset.go, to = el => el && el.scrollIntoView({block:'start'});
+  if(g === 'chart') document.querySelector('header').scrollIntoView({block:'start'});
+  else if(g === 'call') to($('#callCard'));
+  else if(g === 'top') to($('#topCard'));
+  else { openTab(g); to($('#tabs')); }
+  $$('#mnav button').forEach(x => x.classList.toggle('on', x === b));
 });
 function openTab(name){
   $$('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === name));
