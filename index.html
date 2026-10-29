@@ -192,6 +192,63 @@ label.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tex
 .empty{color:var(--muted);padding:18px 0;text-align:center}
 .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line2);border-top-color:var(--mint);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
+/* ---------- Simple mode ---------- */
+.sview{display:none;max-width:760px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(90px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+body.simple[data-view="home"] #sHome,body.simple[data-view="mine"] #sMine,body.simple[data-view="ask"] #sAsk{display:block}
+body.simple[data-view="home"] main,body.simple[data-view="mine"] main{display:none}
+body.simple[data-view="ask"] main{display:none}
+body.simple[data-view="home"] .coinbox,body.simple[data-view="home"] .tfs,body.simple[data-view="home"] .stats,
+body.simple[data-view="mine"] .coinbox,body.simple[data-view="mine"] .tfs,body.simple[data-view="mine"] .stats{display:none}
+body.simple .stats .stat:not(.big){display:none}
+body.simple[data-view="ask"] .tfs,body.simple #btnAnalyze{display:none}
+body.simple .bottom,body.simple #topCard,body.simple #indCard,body.simple #calcCard,body.simple #macroCard,body.simple #aiCard,body.simple .sidectl,body.simple .rsiwrap,body.simple .scrollhint{display:none!important}
+body.simple #callCard .kv,body.simple #bSave,body.simple #bCopy,body.simple #bFlip,body.simple #bTook,body.simple #callCard [data-ask]{display:none!important}
+body.simple .mnav#mnav{display:none!important}
+body.simple .snav{display:flex}
+body.simple{padding-bottom:calc(66px + env(safe-area-inset-bottom,0px))}
+body.simple .toast{bottom:calc(78px + env(safe-area-inset-bottom,0px))}
+.snav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border-top:1px solid var(--line);padding:6px max(6px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px));justify-content:center}
+.snav button{flex:1;max-width:150px;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;font-weight:600;color:var(--muted);padding:5px 0;border-radius:10px}
+.snav button b{font-size:20px;font-weight:400;line-height:1}
+.snav button.on{color:var(--mint);background:rgba(80,210,193,.08)}
+.sv-h{font-size:22px;font-weight:700;margin:4px 0 4px}
+.sv-sub{color:var(--muted);margin:0 0 16px;line-height:1.5}
+.sv-sec{font-size:12px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:var(--muted);margin:22px 0 10px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.mkt{display:flex;gap:12px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;line-height:1.5}
+.mkt .ic{font-size:26px;line-height:1}
+.sc{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.sc-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sc-top .coin{font-size:18px;font-weight:700}
+.sc-top .tfl{color:var(--muted);font-size:12px}
+.sc-st{margin:10px 0 12px;padding:9px 11px;border-radius:9px;font-weight:600;line-height:1.4;font-size:14px}
+.sc-st.go{background:rgba(80,210,193,.13);color:var(--mint)}
+.sc-st.wait{background:rgba(240,185,90,.11);color:var(--amber)}
+.sc-st.gone{background:rgba(237,112,136,.10);color:var(--red)}
+.sc-lv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:10px}
+.sc-lv div{background:var(--panel2);border-radius:8px;padding:7px 8px;min-width:0}
+.sc-lv small{display:block;font-size:11px;color:var(--muted);font-weight:600;margin-bottom:2px}
+.sc-lv span{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13px;overflow-wrap:anywhere}
+.sc-lv .stp span{color:var(--red)} .sc-lv .tgt span{color:var(--teal)}
+.sc-why{color:var(--muted);font-size:13px;line-height:1.5;margin-bottom:12px}
+.sc-btn{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.sc-btn .btn{justify-content:center;text-align:center;padding:9px 6px}
+.wrow{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:11px 12px;background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer}
+.wrow .w1{font-weight:700;white-space:nowrap}
+.wrow .w2{color:var(--muted);font-size:13px;text-align:right;min-width:0}
+.empty2{background:var(--panel);border:1px dashed var(--line2);border-radius:12px;padding:18px;color:var(--muted);line-height:1.55;text-align:center}
+.bal{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.bal div{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+.bal small{display:block;color:var(--muted);font-size:12px;font-weight:600;margin-bottom:4px}
+.bal b{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:18px}
+.prow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:12px;background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:8px}
+.prow .p2{color:var(--muted);font-size:13px;grid-column:1/-1}
+.askbtns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 6px}
+.askbtns .btn{padding:14px 8px;font-size:15px;justify-content:center}
+.help{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px 14px;margin-top:22px}
+.help summary{cursor:pointer;padding:10px 0;font-weight:600}
+.help p{color:var(--muted);line-height:1.55;margin:0 0 10px}
+#btnMode{font-weight:700}
+@media (max-width:640px){ .sc-lv{grid-template-columns:repeat(2,minmax(0,1fr))} }
 .mnav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border-top:1px solid var(--line);padding:6px max(6px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}
 .mnav button{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--muted);padding:4px 0}
 .mnav button b{font-size:18px;font-weight:400;line-height:1}
@@ -320,6 +377,7 @@ header,.side,.bottom,.modal .box,.toast,.legend,.scrollhint{zoom:var(--ui,1)}
   </div>
   <div class="seg" id="langSw"><button data-lang="en">EN</button><button data-lang="sk">SK</button></div>
   <button class="hbtn ghost" id="btnAlerts"></button>
+  <button class="hbtn ghost" id="btnMode"></button>
   <button class="hbtn ghost" id="btnSettings" data-i18n="settings"></button>
   <button class="hbtn primary" id="btnAnalyze" data-i18n="analyze"></button>
   <div class="profbox">
@@ -470,6 +528,21 @@ header,.side,.bottom,.modal .box,.toast,.legend,.scrollhint{zoom:var(--ui,1)}
     <div class="disc" data-i18n="disc"></div>
   </aside>
 </main>
+<section class="sview" id="sHome"></section>
+<section class="sview" id="sMine"></section>
+<section class="sview" id="sAsk">
+  <div class="sv-h" id="askH"></div>
+  <p class="sv-sub" id="askSub"></p>
+  <div class="askbtns"><button class="btn" data-sask="long" style="border-color:rgba(80,210,193,.5)">🟢 <span id="askL"></span></button><button class="btn" data-sask="short" style="border-color:rgba(237,112,136,.5)">🔴 <span id="askS"></span></button></div>
+  <label class="f" style="margin-top:8px"><span id="askEntryL"></span><input id="askEntry" class="mono" inputmode="decimal"></label>
+  <div id="askOut" style="margin-top:14px"></div>
+</section>
+<nav class="snav" id="snav">
+  <button data-sv="home"><b>🏠</b><span id="svHome"></span></button>
+  <button data-sv="chart"><b>📈</b><span id="svChart"></span></button>
+  <button data-sv="mine"><b>💼</b><span id="svMine"></span></button>
+  <button data-sv="ask"><b>❓</b><span id="svAsk"></span></button>
+</nav>
 <nav class="mnav" id="mnav">
   <button data-go="chart"><b>📈</b><span data-i18n="navChart"></span></button>
   <button data-go="call"><b>🎯</b><span data-i18n="navCall"></span></button>
@@ -656,6 +729,7 @@ if(!Array.isArray(profiles) || !profiles.length){
   profiles = [p];
 }
 profiles.forEach(p => { p.settings = {...DEF_SETTINGS, ...(p.settings || {})}; p.journal ||= []; p.trades ||= []; p.priceAlerts ||= []; p.paper ||= newPaper(); const oldAuto = !p.paper.auto?.v2, oldV3 = !p.paper.auto?.v3; p.paper.auto = {...DEF_AUTO, ...(p.paper.auto || {})}; p.paper.brackets ||= []; p.paper.history ||= [];
+  if(!p.settings.v4){ p.settings.simple = true; p.settings.sview = 'home'; p.settings.tf = '4h'; p.settings.v4 = 1; } // Simple mode is the default view
   if(!p.settings.v2){ if(p.settings.minScore <= 8) p.settings.minScore = 9; p.settings.adxMin = 20; p.settings.v2 = 1; } // move old defaults to the researched ones
   if(oldAuto) p.paper.auto = {...p.paper.auto, tf:'4h+1h', minScore:9, maxPos:5, dayLoss:3, every:15, v2:1};
   if(oldV3) p.paper.auto = {...p.paper.auto, tf:'4h', maxPos:3, dirCap:2, v3:1}; // 1h had no edge once candles were simulated honestly
@@ -672,6 +746,9 @@ function claimPrimary(force){
   if(force || !l || l.id === TAB_ID || now - l.t > 60000){ saveJSON('jv_primary', {id:TAB_ID, t:now}); return true; }
   return false;
 }
+addEventListener('pagehide', () => { // a refresh or a closed tab hands the primary role over at once (no 60 s view-only wait)
+  try{ const l = loadJSON('jv_primary', null); if(isPrimary && l && l.id === TAB_ID){ saveJSON('jv_profiles', profiles); localStorage.removeItem('jv_primary'); } }catch(e){}
+});
 function persist(){
   if(!isPrimary) return; // view-only tab never overwrites what the running tab saved
   prof().updated = Date.now(); saveJSON('jv_profiles', profiles); saveJSON('jv_active', activeId); cloudSync();
@@ -746,6 +823,7 @@ const I18N = {
 };
 function applyI18n(){
   document.documentElement.lang = LANG;
+  if(typeof renderSimple === 'function') setTimeout(renderSimple, 0);
   $$('[data-i18n]').forEach(el => { const v = I18N[el.dataset.i18n]; if(v) el.textContent = tr(v[0], v[1]); });
   $$('[data-i18n-ph]').forEach(el => { const v = I18N[el.dataset.i18nPh]; if(v) el.placeholder = tr(v[0], v[1]); });
   $$('[data-i18n-html]').forEach(el => { const v = I18N[el.dataset.i18nHtml]; if(v) el.innerHTML = tr(v[0], v[1]); });
@@ -2237,6 +2315,7 @@ async function getScan(tf, maxAgeMin = 10){
   const rows = await scanCalls(tf, 30); scanCache[tf] = {t:Date.now(), rows}; renderTop(); return rows;
 }
 function renderTop(){
+  if(document.body.dataset.view === 'home') renderHome();
   const el = $('#topList'); if(!el) return;
   const rows = ['4h', '1h'].flatMap(tf => scanCache[tf]?.rows || []).filter(r => r.vclass !== 'no') // far entries are fine: they become limit orders
     .sort((a, b) => (b.vclass === 'valid') - (a.vclass === 'valid') || (b.score - b.thr) - (a.score - a.thr) || b.plan.rr2 - a.plan.rr2).slice(0, 8);
@@ -3708,6 +3787,145 @@ $('#tfs').addEventListener('click', e => {
   const b = e.target.closest('button[data-tf]'); if(!b) return;
   state.tf = b.dataset.tf; S().tf = state.tf; persist(); syncCoinUI(); load();
 });
+/* ============================================================
+   Simple mode: Today / Chart / Mine / Ask (default view; Pro = full layout)
+   ============================================================ */
+let btcDay = null; // {score, text, t}
+async function loadBtcDay(){
+  if(btcDay && Date.now() - btcDay.t < 30 * 60000) return;
+  try{ const H = await fetchCandles('BTC', '1d', 300); const b = htfBias(H); btcDay = {score:b.score, text:biasText(b), t:Date.now()}; if(document.body.dataset.view === 'home') renderHome(); }catch(e){ console.warn('btc day', e); }
+}
+function callStatus(c){ // what to do with this call right now, in plain words
+  const p = c.plan, L = c.dir === 'long', m = midOf(c.coin) ?? c.price;
+  if(L ? m >= p.tp1 : m <= p.tp1){ const d = Math.abs(p.e1 - m) / m * 100; return {cls:'wait', far:true, txt:tr(`Far entry: waits for a pullback to ${fmt(p.e1)} (${d.toFixed(1)} % ${p.e1 < m ? 'lower' : 'higher'}). Only as a limit order.`, `Ďaleký vstup: čaká na návrat na ${fmt(p.e1)} (o ${d.toFixed(1)} % ${p.e1 < m ? 'nižšie' : 'vyššie'}). Len ako limitka.`)}; }
+  const inZone = L ? m <= p.e1 : m >= p.e1;
+  if(p.market || inZone) return {cls:'go', txt:tr(`Price is in the zone now (${fmt(m)}). You can enter.`, `Cena je teraz v zóne (${fmt(m)}). Môžeš vstúpiť.`)};
+  const d = Math.abs(p.e1 - m) / m * 100;
+  return {cls:'wait', txt:tr(`Waiting for ${fmt(p.e1)} (${d.toFixed(1)} % ${p.e1 < m ? 'lower' : 'higher'}). Place a limit order and wait.`, `Čaká sa na ${fmt(p.e1)} (o ${d.toFixed(1)} % ${p.e1 < m ? 'nižšie' : 'vyššie'}). Zadaj limitku a čakaj.`)};
+}
+const shortWhy = c => c.reasons.filter(r => r.w > 0).slice(0, 2).map(r => esc(r.txt.split(':')[0])).join(' · ');
+let homeCalls = [];
+function renderHome(){
+  const el = $('#sHome'); if(!el) return;
+  const sc = scanCache['4h'], rows = sc?.rows || [];
+  const order = {go:0, wait:1}; // tested trades first (in the zone, then nearest); far pullback plans separately (the bot skips them)
+  const valid = rows.filter(r => r.vclass === 'valid').map(c => ({c, st:callStatus(c)}));
+  const near = valid.filter(x => !x.st.far).sort((a, b) => order[a.st.cls] - order[b.st.cls] || a.c.plan.dist - b.c.plan.dist), far = valid.filter(x => x.st.far).sort((a, b) => a.c.plan.dist - b.c.plan.dist);
+  homeCalls = [...near, ...far].map(x => x.c);
+  const watch = rows.filter(r => r.vclass === 'watch').sort((a, b) => (b.score - b.thr) - (a.score - a.thr)).slice(0, 5);
+  const hr = new Date().getHours(), hi = hr < 10 ? tr('Good morning', 'Dobré ráno') : hr < 18 ? tr('Hello', 'Ahoj') : tr('Good evening', 'Dobrý večer');
+  const b = btcDay, mk = !b ? `<span class="spin"></span> ${tr('Reading the market…', 'Čítam trh…')}`
+    : b.score >= 2 ? tr(`<b>Bitcoin is in an uptrend</b> on the daily chart. Longs have the wind at their back today.`, `<b>Bitcoin je na dennom grafe v uptrende.</b> Longy majú dnes vietor v chrbte.`)
+    : b.score <= -2 ? tr(`<b>Bitcoin is in a downtrend</b> on the daily chart. Shorts have the wind at their back, be careful with longs.`, `<b>Bitcoin je na dennom grafe v downtrende.</b> Shorty majú vietor v chrbte, s longami opatrne.`)
+    : tr(`<b>Bitcoin is moving sideways</b> on the daily chart. Fewer clean trades, more patience.`, `<b>Bitcoin ide na dennom grafe do strany.</b> Menej čistých obchodov, viac trpezlivosti.`);
+  const icon = !b ? '🧭' : b.score >= 2 ? '📈' : b.score <= -2 ? '📉' : '↔️';
+  const card = (c, i) => { const p = c.plan, st = callStatus(c); return `<div class="sc">
+      <div class="sc-top"><span class="coin">${esc(c.coin)}</span><span class="badge ${c.dir}">${c.dir === 'long' ? 'LONG' : 'SHORT'}</span><span class="tfl">4h · ${c.score.toFixed(1)} ${tr('pts', 'b.')} · RR ${p.rr2.toFixed(1)}</span></div>
+      <div class="sc-st ${st.cls}">${st.txt}</div>
+      <div class="sc-lv"><div><small>${tr('Entry', 'Vstup')}</small><span>${fmt(p.e1)}</span></div><div class="stp"><small>Stop</small><span>${fmt(p.sl)}</span></div><div class="tgt"><small>${tr('Target 1', 'Cieľ 1')}</small><span>${fmt(p.tp1)}</span></div><div class="tgt"><small>${tr('Target 2', 'Cieľ 2')}</small><span>${fmt(p.tp2)}</span></div></div>
+      <div class="sc-why">${tr('Why', 'Prečo')}: ${shortWhy(c) || '–'}</div>
+      <div class="sc-btn"><button class="btn" data-hchart="${i}">📈 ${tr('Chart', 'Graf')}</button><button class="btn" data-hdemo="${i}">🧪 Demo</button><button class="btn fill" data-hlive="${i}">💰 ${tr('Trade', 'Obchodovať')}</button></div>
+    </div>`; };
+  el.innerHTML = `
+    <div class="sv-h">${hi} 👋</div>
+    <p class="sv-sub">${tr('Here is what J.A.R.V.I.S. sees on the 30 biggest coins (4h, the tested setup).', 'Toto vidí J.A.R.V.I.S. na 30 najväčších coinoch (4h, otestovaný setup).')}</p>
+    <div class="mkt"><span class="ic">${icon}</span><div>${mk}</div></div>
+    ${macroWarn()}
+    <div class="sv-sec"><span>🎯 ${tr('Trades for today', 'Obchody na dnes')} (${near.length})</span><button class="btn sm" id="hRefresh">↻ ${sc ? new Date(sc.t).toLocaleTimeString(LANG === 'sk' ? 'sk-SK' : 'en-GB', {hour:'2-digit', minute:'2-digit'}) : ''}</button></div>
+    ${!sc ? `<div class="empty2"><span class="spin"></span> ${tr('Scanning 30 coins… this takes about a minute.', 'Skenujem 30 coinov… trvá to asi minútu.')}</div>`
+      : near.length ? near.map((x, i) => card(x.c, i)).join('')
+      : `<div class="empty2">😌 ${tr('No trade worth taking right now. That is normal: good setups come a few times a week. J.A.R.V.I.S. keeps watching.', 'Teraz tu nie je obchod, ktorý by stál za to. To je normálne: dobré setupy prídu pár razy do týždňa. J.A.R.V.I.S. sleduje ďalej.')}</div>`}
+    ${far.length ? `<div class="sv-sec"><span>📌 ${tr('Far pullback plans', 'Plány na hlboký návrat')} (${far.length})</span></div><p class="sv-sub" style="margin-top:-4px">${tr('The entry is beyond the first target, so these were not part of the tested setup. Use them only as limit orders if you like the idea.', 'Vstup je až za prvým cieľom, preto neboli súčasťou otestovaného setupu. Ber ich len ako limitky, ak sa ti idea páči.')}</p>${far.map((x, i) => card(x.c, near.length + i)).join('')}` : ''}
+    ${watch.length ? `<div class="sv-sec"><span>👀 ${tr('Almost there', 'Skoro hotové')}</span></div>
+      ${watch.map(c => `<div class="wrow" data-wcoin="${esc(c.coin)}"><span class="w1">${esc(c.coin)} <span class="badge ${c.dir}">${c.dir === 'long' ? 'L' : 'S'}</span></span><span class="w2">${tr('missing', 'chýba')}: ${esc(c.conditions[0] || tr('more confluence', 'viac dôvodov'))}</span></div>`).join('')}` : ''}
+    <details class="help"><summary>❔ ${tr('How to read a trade', 'Ako čítať obchod')}</summary>
+      <p><b>${tr('Entry', 'Vstup')}</b>: ${tr('the price where you get in. Usually a limit order: you place it and wait until price comes there.', 'cena, kde vstupuješ. Väčšinou limitka: zadáš ju a čakáš, kým tam cena príde.')}</p>
+      <p><b>Stop</b>: ${tr('where you get out with a small planned loss if the idea is wrong. Always set it.', 'kde vystúpiš s malou plánovanou stratou, ak sa idea nepotvrdí. Vždy ho nastav.')}</p>
+      <p><b>${tr('Target 1 / 2', 'Cieľ 1 / 2')}</b>: ${tr('at Target 1 take half and move the stop to your entry (the trade can no longer lose). The rest closes at Target 2.', 'na Cieli 1 zober polovicu a posuň stop na vstup (obchod už nemôže skončiť v strate). Zvyšok sa zavrie na Cieli 2.')}</p>
+      <p><b>RR</b>: ${tr('how many times more you can win than you risk. 2.5 = you risk 10 $, you can make 25 $.', 'koľkokrát viac môžeš zarobiť, než riskuješ. 2,5 = riskuješ 10 $, môžeš zarobiť 25 $.')}</p>
+      <p>${tr('Honest track record: price reaches the entry in about 3 of 10 trades, and roughly half of those reach Target 1 before the stop. The edge is small, so keep the risk small (1 % of your account per trade).', 'Poctivá štatistika: cena príde na vstup asi pri 3 z 10 obchodov a zhruba polovica z nich dôjde k Cieľu 1 skôr ako na stop. Výhoda je malá, preto riskuj málo (1 % účtu na obchod).')}</p>
+    </details>`;
+}
+function openCallChart(c){ state.tf = c.tf; S().tf = c.tf; setView('chart'); setCoin(c.coin); }
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-hchart],[data-hdemo],[data-hlive],[data-wcoin],#hRefresh'); if(!t) return;
+  if(t.id === 'hRefresh'){ refreshTop(true); renderHome(); return; }
+  if(t.dataset.wcoin){ state.tf = '4h'; S().tf = '4h'; setView('chart'); setCoin(t.dataset.wcoin); return; }
+  const c = homeCalls[+(t.dataset.hchart ?? t.dataset.hdemo ?? t.dataset.hlive)]; if(!c) return;
+  if(t.dataset.hchart != null) openCallChart(c);
+  else if(t.dataset.hdemo != null){ if(openPaper(c, 'manual')){ toast(tr(`Demo trade on ${c.coin} opened. See it in Mine.`, `Demo obchod na ${c.coin} otvorený. Nájdeš ho v Moje.`)); } }
+  else liveTradeCall(c);
+});
+function renderMine(){
+  const el = $('#sMine'); if(!el) return;
+  const pp = PP(), eq = paperEquity(), pnl = eq - pp.start, a = pp.auto;
+  const hist = pp.history.filter(x => x.filled).slice(0, 6), open = pp.brackets, mine = prof().trades.filter(t => t.exit == null), done = prof().trades.filter(t => t.exit != null).slice(0, 4);
+  const money = v => `<span class="${v >= 0 ? 'up' : 'down'}">${fmtUsd(v, true)}</span>`;
+  const bRow = x => { const m = midOf(x.coin), L = x.dir === 'long', up = x.qty > 0 && m != null ? (L ? 1 : -1) * (m - x.avg) * x.qty : 0;
+    return `<div class="prow"><span><b>${esc(x.coin)}</b> <span class="badge ${x.dir}">${L ? 'LONG' : 'SHORT'}</span> ${x.source === 'auto' ? '🤖' : ''}</span><span>${x.filledQty > 0 ? money(x.realized + up) : '<span class="muted">' + tr('waiting', 'čaká') + '</span>'}</span>
+      <span class="p2">${x.filledQty > 0 ? tr(`in trade from ${fmt(x.avg)}`, `v obchode od ${fmt(x.avg)}`) : tr(`limit at ${fmt(x.legs[0].px)}`, `limitka na ${fmt(x.legs[0].px)}`)} · stop ${fmt(x.sl)} · ${tr('targets', 'ciele')} ${fmt(x.tp1)} / ${fmt(x.tp2)}</span></div>`; };
+  const tRow = t => { const c = tradeCalc(t); return `<div class="prow"><span><b>${esc(t.coin)}</b> <span class="badge ${t.dir}">${t.dir === 'long' ? 'LONG' : 'SHORT'}</span> ${t.hl ? '<span class="pill open">HL ' + hlStateLabel(t.hl.state) + '</span>' : ''}</span><span>${c.pnl != null ? money(c.pnl) : '<span class="muted">' + tr('waiting', 'čaká') + '</span>'}</span>
+      <span class="p2">${tr('entry', 'vstup')} ${fmt(t.entry)} · stop ${t.sl ? fmt(t.sl) : '–'} · ${tr('target', 'cieľ')} ${t.tp ? fmt(t.tp) : '–'}${t.exit != null ? ' · ' + tr('closed at', 'zavreté za') + ' ' + fmt(t.exit) : ''}</span></div>`; };
+  el.innerHTML = `
+    <div class="sv-h">💼 ${tr('My trades', 'Moje obchody')}</div>
+    <p class="sv-sub">${tr('Demo money and your real trades in one place.', 'Demo peniaze a tvoje skutočné obchody na jednom mieste.')}</p>
+    <div class="bal"><div><small>🧪 ${tr('Demo account', 'Demo účet')}</small><b>${fmtUsd(eq)}</b></div><div><small>${tr('Since start', 'Od začiatku')}</small><b>${money(pnl)}</b></div></div>
+    <div class="sv-sec"><span>🤖 Autopilot</span><button class="btn sm${a.on ? ' fill' : ''}" id="mAuto">${a.on ? tr('ON · turn off', 'ZAPNUTÝ · vypnúť') : tr('OFF · turn on', 'VYPNUTÝ · zapnúť')}</button></div>
+    <p class="sv-sub" style="margin:0">${tr('When on, J.A.R.V.I.S. opens the tested 4h trades in the demo by itself (max 3 at once, 1 % risk each) while this page is open.', 'Keď je zapnutý, J.A.R.V.I.S. sám otvára otestované 4h obchody v deme (max 3 naraz, 1 % riziko na každý), kým je stránka otvorená.')}</p>
+    <div class="sv-sec"><span>🧪 ${tr('Demo positions', 'Demo pozície')} (${open.length})</span></div>
+    ${open.length ? open.map(bRow).join('') : `<div class="empty2">${tr('No demo position. Open one from Today with 🧪 Demo.', 'Žiadna demo pozícia. Otvor ju v Dnes cez 🧪 Demo.')}</div>`}
+    <div class="sv-sec"><span>💰 ${tr('My real trades', 'Moje skutočné obchody')} (${mine.length})</span></div>
+    ${mine.length ? mine.map(tRow).join('') : `<div class="empty2">${tr('No open real trade. Use 💰 Trade on a call to send it to Hyperliquid.', 'Žiadny otvorený skutočný obchod. Cez 💰 Obchodovať pri calle ho pošleš na Hyperliquid.')}</div>`}
+    ${hist.length || done.length ? `<div class="sv-sec"><span>🕘 ${tr('Recently closed', 'Naposledy zavreté')}</span></div>
+      ${hist.map(x => `<div class="prow"><span><b>${esc(x.coin)}</b> <span class="badge ${x.dir}">${x.dir === 'long' ? 'L' : 'S'}</span> <span class="muted">${REASON()[x.reason] || x.reason}</span></span><span>${money(x.pnl)}</span></div>`).join('')}${done.map(tRow).join('')}` : ''}
+    <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="mPro">${tr('All details (Pro view)', 'Všetky detaily (Pro)')}</button></div>`;
+}
+document.addEventListener('click', e => {
+  if(e.target.closest('#mAuto')){ $('#aOn').click(); setTimeout(renderMine, 50); }
+  if(e.target.closest('#mPro')){ setMode(false); openTab('demo'); document.querySelector('#tabs').scrollIntoView({block:'start'}); }
+});
+function renderAsk(){
+  if(!$('#askH')) return;
+  $('#askH').textContent = tr(`Should I trade ${state.coin}?`, `Mám obchodovať ${state.coin}?`);
+  $('#askSub').textContent = tr('Pick the coin at the top, then tell J.A.R.V.I.S. what you want to do. It checks 1D, 4h and 1h and answers yes / not yet / no, with the reasons for and against.', 'Hore vyber coin a povedz J.A.R.V.I.S.-ovi, čo chceš urobiť. Skontroluje 1D, 4h aj 1h a odpovie áno / zatiaľ nie / nie, s dôvodmi za aj proti.');
+  $('#askL').textContent = tr('I want to go LONG', 'Chcem ísť LONG'); $('#askS').textContent = tr('I want to go SHORT', 'Chcem ísť SHORT');
+  $('#askEntryL').textContent = tr('My entry price (optional)', 'Moja vstupná cena (nepovinné)'); $('#askEntry').placeholder = fmt(midOf(state.coin) ?? '') || '';
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-sask]'); if(!b) return;
+  $('#ideaDir').value = b.dataset.sask; $('#ideaText').value = ''; $('#ideaEntry').value = $('#askEntry').value;
+  if(checkIdea()){ $('#askOut').innerHTML = $('#ideaOut').innerHTML; }
+  else $('#askOut').innerHTML = `<div class="empty2">${tr('Wait a moment, the chart is still loading.', 'Chvíľu počkaj, graf sa ešte načítava.')}</div>`;
+});
+function setView(v){
+  document.body.dataset.view = v; S().sview = v; persist();
+  $$('#snav button').forEach(b => b.classList.toggle('on', b.dataset.sv === v));
+  if(v === 'home'){ renderHome(); loadBtcDay(); if(!scanCache['4h'] || Date.now() - scanCache['4h'].t > 10 * 60000) refreshTop(); }
+  if(v === 'mine') renderMine();
+  if(v === 'ask'){ renderAsk(); $('#askOut').innerHTML = ''; if(state.tf !== '4h'){ state.tf = '4h'; S().tf = '4h'; syncCoinUI(); load(); } } // answers on 4h, the tested timeframe
+  document.querySelector('header').scrollIntoView({block:'start'});
+}
+function setMode(simple){
+  S().simple = simple; persist();
+  document.body.classList.toggle('simple', simple);
+  if(simple) setView(S().sview || 'home'); else document.body.dataset.view = '';
+  renderSimple();
+}
+function renderSimple(){
+  if(!$('#btnMode')) return;
+  const simple = document.body.classList.contains('simple');
+  $('#btnMode').textContent = simple ? 'Pro' : tr('Simple', 'Jednoduché');
+  $('#btnMode').title = simple ? tr('Show everything (indicators, scanner, backtest…)', 'Ukázať všetko (indikátory, scanner, backtest…)') : tr('Back to the simple view', 'Späť na jednoduché zobrazenie');
+  const L = {svHome:['Today', 'Dnes'], svChart:['Chart', 'Graf'], svMine:['Mine', 'Moje'], svAsk:['Ask', 'Spýtaj sa']};
+  for(const [id, v] of Object.entries(L)) if($('#' + id)) $('#' + id).textContent = tr(v[0], v[1]);
+  if(simple){ const v = document.body.dataset.view; if(v === 'home') renderHome(); if(v === 'mine') renderMine(); if(v === 'ask') renderAsk(); }
+}
+$('#btnMode').onclick = () => setMode(!document.body.classList.contains('simple'));
+$('#snav').addEventListener('click', e => { const b = e.target.closest('[data-sv]'); if(b) setView(b.dataset.sv); });
+setInterval(() => { // keep prices / statuses fresh on the simple screens
+  if(!document.body.classList.contains('simple') || document.hidden) return;
+  const v = document.body.dataset.view; if(v === 'home') renderHome(); if(v === 'mine') renderMine();
+}, 15000);
 $('#mnav').addEventListener('click', e => {
   const b = e.target.closest('[data-go]'); if(!b) return;
   const g = b.dataset.go, to = el => el && el.scrollIntoView({block:'start'});
@@ -3764,9 +3982,12 @@ document.addEventListener('keydown', e => {
   initSidePanel();
   syncCoinUI();
   applyProfile(true);
+  if(S().simple){ document.body.classList.add('simple'); document.body.dataset.view = S().sview || 'home'; }
+  renderSimple();
   await refreshCtx();
   await load();
   paperCatchUp();
+  if(S().simple) setView(document.body.dataset.view || 'home');
   setInterval(() => { if($('#tab-real').classList.contains('on')) refreshLive(); }, 5000);
   setInterval(syncHlTrades, 30000); setTimeout(syncHlTrades, 4000);
   setInterval(refreshCtx, 30000);
