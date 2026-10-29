@@ -2042,8 +2042,8 @@ function reliabilityNote(call){
     `<b>Track record:</b> on ${TFLABEL[call.tf]} these setups showed <b>no reliable edge</b> in an honest test. Use ${TFLABEL[call.tf]} for timing and take the trade only when 4h agrees.`,
     `<b>Ako dopadali:</b> na ${TFLABEL[call.tf]} tieto setupy v poctivom teste <b>nemali spoľahlivú výhodu</b>. ${TFLABEL[call.tf]} ber ako načasovanie a obchod ber, len keď súhlasí 4h.`)}</div>`;
   return `<div class="hint" style="margin:-2px 0 10px">📊 ${tr(
-    `<b>Track record of 4h calls</b> (7 months, 30 coins, honest test): price reaches the entry in about <b>3 of 10</b> calls, so most of them are a plan to wait for, not a must-trade. When it fills, TP1 comes before the stop in <b>~47 %</b>. The small edge comes from trading with the daily trend, taking 50 % at TP1 and moving the stop to entry. Expect long losing streaks.`,
-    `<b>Ako dopadali 4h calls</b> (7 mesiacov, 30 coinov, poctivý test): cena sa dostane na vstup asi pri <b>3 z 10</b> callov, takže väčšina je plán na čakanie, nie obchod za každú cenu. Keď sa vstup vyplní, TP1 príde skôr ako stop v <b>~47 %</b>. Malú výhodu dáva obchodovanie s denným trendom, výber 50 % na TP1 a stop na vstup. Počítaj aj s dlhšími sériami strát.`)}</div>`;
+    `<b>Track record of 4h calls</b> (7 months, ~40 coins, honest test): price reaches the entry in about <b>3 of 10</b> calls, so most of them are a plan to wait for, not a must-trade. When it fills, TP1 comes before the stop in <b>~47 %</b>. The small edge comes from trading with the daily trend, taking 50 % at TP1 and moving the stop to entry. On average about +0.1 R per trade, and buying at market instead of the limit was about 0 R. Expect long losing streaks.`,
+    `<b>Ako dopadali 4h calls</b> (7 mesiacov, ~40 coinov, poctivý test): cena sa dostane na vstup asi pri <b>3 z 10</b> callov, takže väčšina je plán na čakanie, nie obchod za každú cenu. Keď sa vstup vyplní, TP1 príde skôr ako stop v <b>~47 %</b>. Malú výhodu dáva obchodovanie s denným trendom, výber 50 % na TP1 a stop na vstup. V priemere asi +0,1 R na obchod a vstup za trhovú cenu namiesto limitky bol asi 0 R. Počítaj aj s dlhšími sériami strát.`)}</div>`;
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-ask]'); if(!b) return;
@@ -3885,17 +3885,45 @@ document.addEventListener('click', e => {
   if(e.target.closest('#mAuto')){ $('#aOn').click(); setTimeout(renderMine, 50); }
   if(e.target.closest('#mPro')){ setMode(false); openTab('demo'); document.querySelector('#tabs').scrollIntoView({block:'start'}); }
 });
+function nowAnswer(dir, entry){ // "if I enter right now": market entry vs the patient plan, judged like the backtest (same stop and targets)
+  const A = state.A; if(!A) return '';
+  const s = dir === 'long' ? 1 : -1, P = entry ?? midOf(state.coin) ?? A.P;
+  const plan = buildPlan(A, dir), call = composeCall(A, dir, scoreDir(A, dir, plan.market ? null : plan.e1), plan);
+  const risk = s * (P - plan.sl), rrNow = risk > 0 ? s * (plan.tp2 - P) / risk : 0, rr1Now = risk > 0 ? s * (plan.tp1 - P) / risk : 0;
+  const atEntry = plan.market || s * (P - plan.e1) <= 0, past = s * (P - plan.tp1) >= 0, cond = call.conditions[0] || tr('more confluence', 'viac dôvodov');
+  let cls, head, sub;
+  if(risk <= 0){ cls = 'gone'; head = tr('NO: price is already past the stop', 'NIE: cena je už za stopom'); sub = tr('This plan is broken. Wait for a new call.', 'Tento plán je zrušený. Počkaj na nový call.'); }
+  else if(call.vclass === 'valid' && atEntry){ cls = 'go'; head = tr('YES, the entry is here now', 'ÁNO, vstup je práve teraz'); sub = tr('Price is at the entry of the plan and the setup is valid. Put the order in with the stop and targets below.', 'Cena je na vstupe plánu a setup je platný. Zadaj príkaz so stopom a cieľmi nižšie.'); }
+  else if(call.vclass === 'valid'){ cls = 'wait'; head = tr(`Not at market. Limit at ${fmt(plan.e1)}`, `Nie za trhovú cenu. Limitka na ${fmt(plan.e1)}`);
+    sub = past ? tr('Price already ran to TP1. Chasing now means buying the top of the move.', 'Cena už dobehla k TP1. Naháňať to teraz znamená kúpiť vrchol pohybu.')
+      : tr(`The setup is valid, but the entry is ${plan.dist.toFixed(1)} % away. Entering now gives R:R ${rrNow.toFixed(1)} instead of ${plan.rr2.toFixed(1)}.`, `Setup je platný, ale vstup je ${plan.dist.toFixed(1)} % ďaleko. Vstup teraz dá RR ${rrNow.toFixed(1)} namiesto ${plan.rr2.toFixed(1)}.`); }
+  else if(call.vclass === 'watch'){ cls = 'wait'; head = tr('NOT YET', 'ZATIAĽ NIE'); sub = tr(`Close, but it is missing: ${cond}.`, `Blízko, ale chýba: ${cond}.`); }
+  else { cls = 'gone'; head = tr('NO', 'NIE'); sub = tr(`No edge on the ${dir} side now (${call.score.toFixed(1)} / ${call.thr} points). Missing: ${cond}.`, `Na strane ${dir === 'long' ? 'long' : 'short'} teraz nie je výhoda (${call.score.toFixed(1)} / ${call.thr} b.). Chýba: ${cond}.`); }
+  const other = scoreDir(A, dir === 'long' ? 'short' : 'long');
+  if(other.score > call.score + 2) sub += ' ' + tr(`The other side scores higher (${other.score.toFixed(1)}).`, `Opačný smer má viac bodov (${other.score.toFixed(1)}).`);
+  const eq = paperEquity(), qtyNow = risk > 0 ? eq * 0.01 / risk : 0, qtyLim = eq * 0.01 / Math.abs(plan.avg - plan.sl);
+  const lv = (k, v, c = '') => `<div class="${c}"><small>${k}</small><span>${v}</span></div>`;
+  return `<div class="sc"><div class="sc-top"><span class="coin">${esc(state.coin)}</span><span class="badge ${dir}">${dir === 'long' ? 'LONG' : 'SHORT'}</span><span class="tfl">4h · ${tr('price', 'cena')} ${fmt(P)}</span></div>
+    <div class="sc-st ${cls}">${head}<div style="font-weight:500;margin-top:4px">${sub}</div></div>
+    <div class="sub" style="margin-top:0">${tr('If you enter NOW at', 'Ak vstúpiš TERAZ za')} ${fmt(P)}</div>
+    ${rr1Now > 0.3 ? `<div class="sc-lv">${lv('Stop', fmt(plan.sl), 'stp')}${lv('TP1', fmt(plan.tp1), 'tgt')}${lv('TP2', fmt(plan.tp2), 'tgt')}${lv('R:R', rr1Now.toFixed(1) + ' / ' + rrNow.toFixed(1))}</div>` : `<div class="sc-why">${tr('No sensible trade from here: the targets are already behind the price or too close to it.', 'Odtiaľto to nedáva zmysel: ciele sú už za cenou alebo príliš blízko.')}</div>`}
+    ${atEntry ? '' : `<div class="sub" style="margin-top:0">${tr('The patient plan (limit orders)', 'Trpezlivý plán (limitky)')}</div>
+    <div class="sc-lv">${lv('E1', fmt(plan.e1))}${lv('E2', fmt(plan.e2))}${lv('Stop', fmt(plan.sl), 'stp')}${lv('R:R', plan.rr1.toFixed(1) + ' / ' + plan.rr2.toFixed(1))}</div>`}
+    <div class="sc-why">${tr(`Size at 1 % risk of your demo balance (${fmtUsd(eq)}): <b>${(atEntry ? qtyNow : qtyLim).toPrecision(3)} ${esc(state.coin)}</b> (≈ ${fmtUsd((atEntry ? qtyNow * P : qtyLim * plan.avg))}).`,
+      `Veľkosť pri riziku 1 % z demo účtu (${fmtUsd(eq)}): <b>${(atEntry ? qtyNow : qtyLim).toPrecision(3)} ${esc(state.coin)}</b> (≈ ${fmtUsd((atEntry ? qtyNow * P : qtyLim * plan.avg))}).`)}</div>
+    <div class="hint">📊 ${tr('Tested on 7 months and ~40 coins: entering these signals at market earned about <b>0 R</b> per trade, waiting for the limit about <b>+0.1 R</b>. That is why J.A.R.V.I.S. prefers the limit and says when not to chase.', 'Otestované na 7 mesiacoch a ~40 coinoch: vstup na tieto signály za trhovú cenu zarobil asi <b>0 R</b> na obchod, čakanie na limitku asi <b>+0,1 R</b>. Preto J.A.R.V.I.S. uprednostňuje limitku a povie, kedy nenaháňať.')}</div></div>`;
+}
 function renderAsk(){
   if(!$('#askH')) return;
   $('#askH').textContent = tr(`Should I trade ${state.coin}?`, `Mám obchodovať ${state.coin}?`);
-  $('#askSub').textContent = tr('Pick the coin at the top, then tell J.A.R.V.I.S. what you want to do. It checks 1D, 4h and 1h and answers yes / not yet / no, with the reasons for and against.', 'Hore vyber coin a povedz J.A.R.V.I.S.-ovi, čo chceš urobiť. Skontroluje 1D, 4h aj 1h a odpovie áno / zatiaľ nie / nie, s dôvodmi za aj proti.');
+  $('#askSub').textContent = tr('Pick the coin at the top and tap what you want to do. J.A.R.V.I.S. tells you if you can enter right now, or where to put a limit instead, with the stop, targets and size.', 'Hore vyber coin a ťukni, čo chceš urobiť. J.A.R.V.I.S. povie, či môžeš vstúpiť hneď teraz, alebo kam dať radšej limitku, so stopom, cieľmi a veľkosťou.');
   $('#askL').textContent = tr('I want to go LONG', 'Chcem ísť LONG'); $('#askS').textContent = tr('I want to go SHORT', 'Chcem ísť SHORT');
   $('#askEntryL').textContent = tr('My entry price (optional)', 'Moja vstupná cena (nepovinné)'); $('#askEntry').placeholder = fmt(midOf(state.coin) ?? '') || '';
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-sask]'); if(!b) return;
   $('#ideaDir').value = b.dataset.sask; $('#ideaText').value = ''; $('#ideaEntry').value = $('#askEntry').value;
-  if(checkIdea()){ $('#askOut').innerHTML = $('#ideaOut').innerHTML; }
+  if(checkIdea()){ $('#askOut').innerHTML = nowAnswer(b.dataset.sask, $('#askEntry').value.trim() ? num($('#askEntry').value) : null) + `<details class="help" style="margin-top:4px"><summary>${tr('Why: reasons for and against, 1D / 4h / 1h', 'Prečo: dôvody za a proti, 1D / 4h / 1h')}</summary>${$('#ideaOut').innerHTML}</details>`; }
   else $('#askOut').innerHTML = `<div class="empty2">${tr('Wait a moment, the chart is still loading.', 'Chvíľu počkaj, graf sa ešte načítava.')}</div>`;
 });
 function setView(v){
