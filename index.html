@@ -196,6 +196,7 @@ label.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tex
 .sview{display:none;max-width:760px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(90px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 body.simple[data-view="home"] #sHome,body.simple[data-view="mine"] #sMine,body.simple[data-view="ask"] #sAsk{display:block}
 body.simple[data-view="home"] main,body.simple[data-view="mine"] main{display:none}
+body.simple[data-view="home"],body.simple[data-view="mine"],body.simple[data-view="ask"]{overflow-y:auto;overflow-x:hidden} /* desktop body is overflow:hidden for the panel layout */
 body.simple[data-view="ask"] main{display:none}
 body.simple[data-view="home"] .coinbox,body.simple[data-view="home"] .tfs,body.simple[data-view="home"] .stats,
 body.simple[data-view="mine"] .coinbox,body.simple[data-view="mine"] .tfs,body.simple[data-view="mine"] .stats{display:none}
