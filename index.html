@@ -249,6 +249,24 @@ body.simple .toast{bottom:calc(78px + env(safe-area-inset-bottom,0px))}
 .help summary{cursor:pointer;padding:10px 0;font-weight:600}
 .help p{color:var(--muted);line-height:1.55;margin:0 0 10px}
 #btnMode{font-weight:700}
+.scn{border:1px solid var(--line);border-radius:10px;padding:10px 11px;margin-bottom:8px;background:var(--panel2)}
+.scn-h{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-weight:700}
+.scn-h .k{color:var(--muted);font-weight:600;font-size:12px;margin-left:auto}
+.scn-if{color:var(--muted);font-size:13px;line-height:1.45;margin:6px 0 8px}
+.scn .sc-lv{margin-bottom:6px}
+.scn .sc-lv div{background:var(--panel)}
+.scn.ran{opacity:.75}
+.lq-sum{padding:9px 11px;border-radius:9px;line-height:1.45;font-size:14px;margin-bottom:10px;background:var(--panel2)}
+.lq-kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-bottom:10px}
+.lq-kv div{background:var(--panel2);border-radius:8px;padding:7px 8px;min-width:0}
+.lq-kv small{display:block;font-size:11px;color:var(--muted);font-weight:600;margin-bottom:2px}
+.lq-kv b{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13px;font-weight:600;overflow-wrap:anywhere}
+.lq-lad{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:3px 8px;align-items:center;font-size:12px}
+.lq-lad .px{font-family:'IBM Plex Mono',ui-monospace,monospace;color:var(--muted);text-align:right}
+.lq-lad .bar{height:11px;border-radius:3px;min-width:2px}
+.lq-lad .bar.s{background:rgba(80,210,193,.75)} .lq-lad .bar.l{background:rgba(237,112,136,.75)}
+.lq-lad .wall{font-size:11px;color:var(--amber);white-space:nowrap}
+.lq-lad .now{grid-column:1/-1;border-top:1px dashed var(--mint);color:var(--mint);font-size:11px;padding-top:2px;text-align:center}
 @media (max-width:640px){ .sc-lv{grid-template-columns:repeat(2,minmax(0,1fr))} }
 .mnav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border-top:1px solid var(--line);padding:6px max(6px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}
 .mnav button{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--muted);padding:4px 0}
@@ -511,6 +529,8 @@ header,.side,.bottom,.modal .box,.toast,.legend,.scrollhint{zoom:var(--ui,1)}
   <aside class="side">
     <div class="card" id="topCard"><h3><span>🔥 <span data-i18n="topTitle"></span><span class="tip" tabindex="0" data-tip="top">?</span></span><button class="btn sm" id="topRefresh" title="Refresh">↻</button></h3><div id="topList" class="hint"></div></div>
     <div class="card" id="callCard"><div class="empty"><span class="spin"></span> <span data-i18n="loading"></span></div></div>
+    <div class="card" id="scenCard"></div>
+    <div class="card" id="liqCard"></div>
     <div class="card" id="indCard"></div>
     <div class="card" id="calcCard">
       <h3><span><span data-i18n="posSize"></span><span class="tip" tabindex="0" data-tip="pos">?</span></span></h3>
@@ -926,9 +946,9 @@ function renderSrc(){
 }
 async function fetchCtx(){
   const [meta, ctxs] = await info({type:'metaAndAssetCtxs'});
-  return meta.universe.map((u, i) => ({name:u.name, delisted:!!u.isDelisted, ...ctxs[i]}))
+  return meta.universe.map((u, i) => ({name:u.name, delisted:!!u.isDelisted, maxLev:u.maxLeverage, ...ctxs[i]}))
     .filter(x => !x.delisted)
-    .map(x => ({name:x.name, mark:+x.markPx, prev:+x.prevDayPx, funding:+x.funding, oi:+x.openInterest * +x.markPx, vol:+x.dayNtlVlm}));
+    .map(x => ({name:x.name, mark:+x.markPx, prev:+x.prevDayPx, funding:+x.funding, oi:+x.openInterest * +x.markPx, vol:+x.dayNtlVlm, maxLev:+x.maxLev || 20, premium:+x.premium || 0}));
 }
 function resample(C, ms){
   const out = [];
@@ -1465,10 +1485,10 @@ function scoreDir(A, dir, at){
 function buildPlan(A, dir, opts={}){
   const s = dir === 'long' ? 1 : -1, u = v => s*v, back = v => s*v, X = A.atr, P = u(A.P);
   const toU = z => ({lo:Math.min(u(z.lo),u(z.hi)), hi:Math.max(u(z.lo),u(z.hi)), t:z.t});
-  const zones = (s > 0 ? A.zones.dem : A.zones.sup).map(toU).filter(z => z.hi <= P + 0.3*X && z.hi >= P - 5*X).sort((a,b) => b.hi - a.hi);
-  const fvgs  = (s > 0 ? A.fvg.bull : A.fvg.bear).map(toU).filter(z => z.hi <= P + 0.3*X && z.hi >= P - 4*X).sort((a,b) => b.hi - a.hi);
+  const zones = (s > 0 ? A.zones.dem : A.zones.sup).map(toU).filter(z => z.hi <= P + 0.3*X && z.hi >= P - (opts.fresh ? 1.5 : 5)*X).sort((a,b) => b.hi - a.hi);
+  const fvgs  = (s > 0 ? A.fvg.bull : A.fvg.bear).map(toU).filter(z => z.hi <= P + 0.3*X && z.hi >= P - (opts.fresh ? 1.5 : 4)*X).sort((a,b) => b.hi - a.hi);
   const sw = s > 0 ? A.sweeps.bull : A.sweeps.bear, swU = sw ? u(sw.wick) : null;
-  const supports = (s > 0 ? A.pv.L : A.pv.H).map(p => u(p.p)).filter(v => v < P - 0.1*X && v > P - 6*X).sort((a,b) => b - a);
+  const supports = (s > 0 ? A.pv.L : A.pv.H).map(p => u(p.p)).filter(v => v < P - 0.1*X && v > P - (opts.fresh ? 3 : 6)*X).sort((a,b) => b - a);
   const dbl = s > 0 ? A.dbl.db : A.dbl.dt;
   const targets = [
     ...(s > 0 ? A.pv.H : A.pv.L).map(p => u(p.p)),
@@ -1518,7 +1538,7 @@ function buildPlan(A, dir, opts={}){
   const tp3Lvl = t3 != null && t3 - front <= avg + 12*risk, tp3 = tp3Lvl ? t3 - front : tp2 + 0.6*(tp2 - avg);
   return {dir, basis, market: e1 === P, e1:back(e1), e2:back(e2), sl:back(sl), tp1:back(tp1), tp2:back(tp2), tp3:back(tp3), avg:back(avg),
     rr1:(tp1 - avg)/risk, rr2:(tp2 - avg)/risk, rr3:(tp3 - avg)/risk, tp3Lvl, slPct: risk / Math.abs(back(avg)) * 100,
-    tp1Lvl: t1 != null && t1 - front <= avg + 3*risk, tp2Lvl: t2 != null && t2 - front <= avg + 8*risk, dist: Math.abs(e1 - P) / Math.abs(A.P) * 100};
+    tp1Lvl: t1 != null && t1 - front <= avg + 3*risk, tp2Lvl: t2 != null && t2 - front <= avg + 8*risk, dist: Math.abs(e1 - P) / Math.abs(A.P) * 100, fresh: !!opts.fresh};
 }
 
 /* plan both sides first, then score each side at its own entry level (a limit entry is judged where it will fill) */
@@ -1567,6 +1587,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-usetf]'); if(!b) return;
   state.tf = b.dataset.usetf; S().tf = state.tf; persist(); syncCoinUI(); load();
 });
+const RAN_FRAC = 1; // share of the way from E1 to TP1 after which a call counts as already played out (backtest-tested)
 function composeCall(A, dir, sc, plan, coin){
   const s = dir === 'long' ? 1 : -1, L = s > 0, thr = (+S().minScore || 9) + tfBonus(A.tf);
   const score = sc.score, conf = Math.max(0, Math.min(100, score/16*100));
@@ -1576,6 +1597,8 @@ function composeCall(A, dir, sc, plan, coin){
   if(score >= thr && plan.rr2 >= 2 && trendOk && htfOk){ verdict = tr('TRADE IT', 'OBCHODUJ'); vclass = 'valid'; }
   else if(score >= thr - 3){ verdict = tr('WAIT', 'ČAKAJ'); vclass = 'watch'; }
   else { verdict = tr('NO TRADE', 'NEOBCHODUJ'); vclass = 'no'; }
+  const ran = s * (A.P - plan.e1) >= RAN_FRAC * s * (plan.tp1 - plan.e1); // the move from this entry already happened: not a plan any more
+  if(ran){ verdict = tr('MOVE ALREADY RAN', 'POHYB UŽ UTIEKOL'); vclass = 'no'; }
   // one plain sentence: what to do right now, with the actual numbers
   const where = plan.market ? '' : tr(` (${plan.dist.toFixed(1)} % ${plan.e1 < A.P ? 'below' : 'above'} the price)`, ` (${plan.dist.toFixed(1)} % ${plan.e1 < A.P ? 'pod' : 'nad'} cenou)`);
   const vsub = {
@@ -1583,14 +1606,16 @@ function composeCall(A, dir, sc, plan, coin){
       ? tr(`<b>Enter now:</b> price is in the zone. Stop ${fmt(plan.sl)}, first target ${fmt(plan.tp1)}.`, `<b>Vstup teraz:</b> cena je v zóne. Stop ${fmt(plan.sl)}, prvý cieľ ${fmt(plan.tp1)}.`)
       : tr(`<b>Place a limit at ${fmt(plan.e1)}</b>${where} and wait for price to come to you. Stop ${fmt(plan.sl)}, first target ${fmt(plan.tp1)}.`, `<b>Zadaj limitku na ${fmt(plan.e1)}</b>${where} a počkaj, kým tam cena príde. Stop ${fmt(plan.sl)}, prvý cieľ ${fmt(plan.tp1)}.`),
     watch: tr(`<b>Don't enter yet.</b> Watch ${fmt(plan.e1)}${where}. Missing: ${'{MISSING}'}.`, `<b>Zatiaľ nevstupuj.</b> Sleduj ${fmt(plan.e1)}${where}. Chýba: ${'{MISSING}'}.`),
-    no: tr('<b>Do nothing now.</b> No edge on this side. Sitting out is a position too.', '<b>Teraz nerob nič.</b> Na tejto strane nie je výhoda. Nečinnosť je tiež pozícia.')}[vclass];
+    no: ran ? tr(`<b>Too late for this one.</b> The entry was ${fmt(plan.e1)} and price is already on the way to the targets. Don't chase it. The Scenarios below show what can come next.`, `<b>Na tento je už neskoro.</b> Vstup bol ${fmt(plan.e1)} a cena je už na ceste k cieľom. Nenaháňaj to. V Scenároch nižšie je, čo môže prísť ďalej.`)
+      : tr('<b>Do nothing now.</b> No edge on this side. Sitting out is a position too.', '<b>Teraz nerob nič.</b> Na tejto strane nie je výhoda. Nečinnosť je tiež pozícia.')}[vclass];
   let risk = score >= thr + 2 ? 'low' : score >= thr - 1.5 ? 'mid' : 'high';
   if(A.htf.score * s <= -2) risk = 'high';
   const riskLevel = {low:tr('Low risk','Nízke riziko') + ' 👌', mid:tr('Moderate risk','Stredné riziko') + ' ✋', high:tr('High risk','Vysoké riziko') + ' ⚠️'}[risk];
   const maxLev = Math.max(2, Math.min(+S().maxLev || 25, Math.floor(50 / plan.slPct)));
   const minLev = Math.max(1, Math.round(maxLev/4));
   const sw = L ? A.sweeps.bull : A.sweeps.bear, pats = L ? A.pat.bull : A.pat.bear, conditions = [];
-  if(vclass !== 'valid'){
+  if(ran) conditions.push(tr('a new setup (this move already happened)', 'nový setup (tento pohyb už prebehol)'));
+  if(vclass !== 'valid' && !ran){
     if(!sw) conditions.push(tr(`wait for a sweep of the ${L?'low':'high'} or a zone test`, `počkaj na sweep ${L?'lowu':'highu'} alebo test zóny`));
     if(!pats.length) conditions.push(tr(`wait for a confirmation candle (${L?'bullish engulfing / pin bar':'bearish engulfing / shooting star'}) on ${TFLABEL[A.tf]}`, `počkaj na potvrdzujúcu sviečku (${L?'bullish engulfing / pinbar':'bearish engulfing / shooting star'}) na ${TFLABEL[A.tf]}`));
     if(!htfOk) conditions.push(tr(`the ${TFLABEL[A.htfTf]} trend is not on your side yet (trade with the bigger trend)`, `trend na ${TFLABEL[A.htfTf]} zatiaľ nejde tvojím smerom (obchoduj s väčším trendom)`));
@@ -1605,7 +1630,7 @@ function composeCall(A, dir, sc, plan, coin){
       `TP1 ${fmt(plan.tp1)}: zober 50 % a posuň stop na vstup (${fmt(plan.avg)}), odvtedy obchod nemôže skončiť v strate · TP2 ${fmt(plan.tp2)}: zvyšok zavri. Voliteľne: malú časť nechaj bežať na TP3 ${fmt(plan.tp3)}. Pred CPI / FOMC: stop na vstup.`),
     invalidation: tr(`${TFLABEL[A.tf]} candle closes ${L?'below':'above'} ${fmt(plan.sl)} = setup is dead. Never move the stop further away.`,
       `${TFLABEL[A.tf]} sviečka zavrie ${L?'pod':'nad'} ${fmt(plan.sl)} = setup padol. Stop nikdy neposúvaj ďalej.`),
-    time: Date.now(),
+    time: Date.now(), ran,
   };
 }
 
@@ -2211,7 +2236,153 @@ function runAnalysis(){
   setIndicatorData(A);
   setMarkers(A);
   refreshPlanVisuals();
+  renderScenarios(); renderLiq();
 }
+
+/* ============================================================
+   Scenarios: both sides at once, each with its condition, best reward-to-risk first
+   ============================================================ */
+function buildScenarios(A){
+  const out = [];
+  for(const dir of ['long', 'short']){
+    const plan = buildPlan(A, dir), call = composeCall(A, dir, scoreDir(A, dir, plan.market ? null : plan.e1), plan);
+    out.push({kind: call.ran ? 'ran' : 'main', call});
+    if(call.ran){ // the tested zone plan already played out: offer a fresh plan from nearer structure, clearly marked
+      const fp = buildPlan(A, dir, {fresh:true}), fc = composeCall(A, dir, scoreDir(A, dir, fp.market ? null : fp.e1), fp);
+      if(!fc.ran && fp.rr2 >= 1.5) out.push({kind:'fresh', call:fc});
+    }
+  }
+  // tested setups first, then how close to the TRADE bar, then reward-to-risk
+  const rank = x => x.kind === 'ran' ? -99 : (x.call.vclass === 'valid' ? 10 : 0) + x.call.score - x.call.thr + Math.min(x.call.plan.rr2, 5) * 0.4 - (x.kind === 'fresh' ? 2 : 0);
+  return out.sort((a, b) => rank(b) - rank(a));
+}
+function renderScenarios(){
+  const el = $('#scenCard'), A = state.A; if(!el || !A) return;
+  state.scen = buildScenarios(A);
+  const lv = (k, v, c = '') => `<div class="${c}"><small>${k}</small><span>${v}</span></div>`;
+  const tag = x => x.kind === 'ran' ? `<span class="pill no">${tr('RAN', 'UTIEKLO')}</span>` : `<span class="pill ${x.call.vclass}">${x.call.vclass === 'valid' ? tr('TRADE', 'OBCHODUJ') : x.call.vclass === 'watch' ? tr('WAIT', 'ČAKAJ') : tr('NO', 'NIE')}</span>`;
+  const cond = x => {
+    const c = x.call, p = c.plan;
+    if(x.kind === 'ran') return tr(`The ${c.dir} from ${fmt(p.e1)} already ran towards its targets. Don't chase it.`, `${c.dir === 'long' ? 'Long' : 'Short'} z ${fmt(p.e1)} už bežal k cieľom. Nenaháňaj ho.`);
+    const pre = x.kind === 'fresh' ? tr('New plan from the current price (less tested, smaller size). ', 'Nový plán od aktuálnej ceny (menej otestovaný, menšia pozícia). ') : '';
+    if(c.vclass === 'valid') return pre + (p.market ? tr('Price is in the zone now.', 'Cena je teraz v zóne.') : tr(`Limit at ${fmt(p.e1)} (${p.dist.toFixed(1)} % away), wait for price to come.`, `Limitka na ${fmt(p.e1)} (${p.dist.toFixed(1)} % od ceny), počkaj, kým príde.`));
+    return pre + tr('If: ', 'Ak: ') + (c.conditions[0] || tr('more confluence', 'viac dôvodov')) + tr(` (${c.score.toFixed(1)} / ${c.thr} points)`, ` (${c.score.toFixed(1)} / ${c.thr} b.)`);
+  };
+  const lq = state.liq && state.liq.coin === state.coin ? state.liq : null, mag = lq ? [lq.topS, lq.topL].filter(Boolean) : [];
+  el.innerHTML = `<h3><span>🧭 ${tr('Scenarios', 'Scenáre')} · ${esc(state.coin)} ${TFLABEL[A.tf]}</span></h3>
+    <div class="hint" style="margin:-4px 0 10px">${tr('Both directions at once, the best one first (setup strength and reward-to-risk). If nothing fits now, these are the plans waiting for price. Tap one to see it on the chart.', 'Oba smery naraz, najlepší hore (sila setupu a pomer zisk/riziko). Keď teraz nič nesedí, toto sú plány, ktoré čakajú na cenu. Ťukni a ukáže sa na grafe.')}</div>
+    ${state.scen.map((x, i) => { const c = x.call, p = c.plan; return `<div class="scn ${x.kind === 'ran' ? 'ran' : ''}" data-scen="${i}" style="cursor:pointer">
+      <div class="scn-h"><span class="badge ${c.dir}">${c.dir === 'long' ? 'LONG' : 'SHORT'}</span>${tag(x)}${x.kind === 'fresh' ? `<span class="pill watch">${tr('new plan', 'nový plán')}</span>` : ''}<span class="k">${c.score.toFixed(1)} / ${c.thr}</span></div>
+      <div class="scn-if">${cond(x)}</div>
+      ${x.kind === 'ran' ? '' : `<div class="sc-lv">${lv('Entry', fmt(p.e1))}${lv('Stop', fmt(p.sl), 'stp')}${lv('TP1 / TP2', fmt(p.tp1) + ' / ' + fmt(p.tp2), 'tgt')}${lv('R:R', p.rr1.toFixed(1) + ' / ' + p.rr2.toFixed(1))}</div>`}</div>`; }).join('')}
+    ${mag.length ? `<div class="hint">🧲 ${tr('Liquidity magnets', 'Magnety likvidity')}: ${mag.map(m => `${m.side === 's' ? tr('shorts liq.', 'likv. shortov') : tr('longs liq.', 'likv. longov')} ${fmt(m.px)}`).join(' · ')}</div>` : ''}`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-scen]'); if(!b || !state.scen) return;
+  const x = state.scen[+b.dataset.scen]; if(!x) return;
+  state.ideaCall = x.call; setPriceLines(x.call.plan); renderCall();
+  document.querySelector('.chartwrap')?.scrollIntoView({block:'start'});
+});
+
+/* ============================================================
+   Liquidity & squeeze radar
+   Estimated liquidation clusters (where leveraged positions opened in the last days would be wiped),
+   real order-book walls, funding / premium and open-interest change.
+   ============================================================ */
+function liqEstimate(C, P, maxLev){
+  const levs = [[5, .12], [10, .28], [20, .25], [25, .15], [50, .12], [100, .08]].filter(([l]) => l <= Math.max(maxLev, 5));
+  const wsum = levs.reduce((a, [, w]) => a + w, 0), mm = 0.5 / Math.max(maxLev, 3), n = C.length;
+  const minAfter = Array(n), maxAfter = Array(n); let lo = Infinity, hi = -Infinity;
+  for(let i = n - 1; i >= 0; i--){ minAfter[i] = lo; maxAfter[i] = hi; lo = Math.min(lo, C[i].l); hi = Math.max(hi, C[i].h); }
+  const step = P * 0.005, L = new Map(), S = new Map(), add = (m, px, v) => { const k = Math.round(px / step); m.set(k, (m.get(k) || 0) + v); };
+  const tEnd = C[n - 1].t;
+  for(let i = 0; i < n; i++){
+    const c = C[i], tp = (c.h + c.l + c.c) / 3, v = c.v * tp * Math.pow(0.5, (tEnd - c.t) / 36e5 / 96); // positions fade out (half-life ~4 days)
+    for(const [lev, w] of levs){
+      const ll = tp * (1 - 1 / lev + mm), sl = tp * (1 + 1 / lev - mm), q = v * w / wsum;
+      if(ll < minAfter[i] && ll < P && ll > P * 0.8) add(L, ll, q);  // longs not liquidated yet
+      if(sl > maxAfter[i] && sl > P && sl < P * 1.2) add(S, sl, q);  // shorts not liquidated yet
+    }
+  }
+  const rows = m => [...m].map(([k, v]) => ({px:k * step, v}));
+  return {L:rows(L), S:rows(S), step};
+}
+async function loadLiq(){
+  const coin = state.coin, ctx = ctxOf(coin), P = midOf(coin) ?? state.C.at(-1)?.c; if(!ctx || !P) return null;
+  const C = (state.tfData && state.tfData['1h']?.length > 100 ? state.tfData['1h'] : null) || await fetchCandles(coin, '1h', 300).catch(() => null);
+  if(!C || C.length < 50) return null;
+  const est = liqEstimate(C, P, ctx.maxLev || 20);
+  let book = null, fund = null;
+  try{ const bk = await info({type:'l2Book', coin, nSigFigs:3}); book = {bids:bk.levels[0].map(x => ({px:+x.px, usd:+x.sz * +x.px})), asks:bk.levels[1].map(x => ({px:+x.px, usd:+x.sz * +x.px}))}; }catch(e){}
+  try{ const fh = await info({type:'fundingHistory', coin, startTime:Date.now() - 7 * 864e5}); fund = fh.length ? fh.reduce((a, x) => a + +x.fundingRate, 0) / fh.length : null; }catch(e){}
+  // open interest change: the app keeps its own hourly snapshots (the exchange gives no history)
+  let oiChg = null;
+  try{
+    const all = JSON.parse(localStorage.getItem('jv_oi') || '{}'), arr = (all[coin] || []).filter(x => Date.now() - x.t < 8 * 864e5);
+    if(!arr.length || Date.now() - arr.at(-1).t > 36e5) arr.push({t:Date.now(), oi:ctx.oi, px:P});
+    all[coin] = arr; localStorage.setItem('jv_oi', JSON.stringify(all));
+    const ref = arr.find(x => Date.now() - x.t <= 26 * 36e5 && Date.now() - x.t >= 20 * 36e5) || (arr.length > 1 && Date.now() - arr[0].t >= 3 * 36e5 ? arr[0] : null);
+    if(ref) oiChg = {pct:(ctx.oi / ref.oi - 1) * 100, pxPct:(P / ref.px - 1) * 100, hours:Math.round((Date.now() - ref.t) / 36e5)};
+  }catch(e){}
+  const within = (rows, a, b) => rows.filter(r => r.px >= a && r.px <= b).reduce((s, r) => s + r.v, 0);
+  const up = within(est.S, P, P * 1.08), dn = within(est.L, P * 0.92, P);
+  const top = (rows, side) => { const r = rows.filter(x => Math.abs(x.px / P - 1) <= 0.08).sort((a, b) => b.v - a.v)[0]; return r ? {...r, side} : null; };
+  const wall = side => { const a = book ? book[side].filter(x => Math.abs(x.px / P - 1) <= 0.05) : []; return a.length ? a.reduce((m, x) => x.usd > m.usd ? x : m) : null; };
+  const depth = side => book ? book[side].filter(x => Math.abs(x.px / P - 1) <= 0.02).reduce((s, x) => s + x.usd, 0) : null;
+  return {coin, P, est, up, dn, topS:top(est.S, 's'), topL:top(est.L, 'l'), fundNow:ctx.funding, fund7:fund, premium:ctx.premium, oi:ctx.oi, oiChg,
+    bidWall:wall('bids'), askWall:wall('asks'), bidDepth:depth('bids'), askDepth:depth('asks'), t:Date.now()};
+}
+function squeezeRead(q){
+  const apr = f => f * 24 * 365 * 100, fN = apr(q.fundNow), ratio = (q.up + 1) / (q.dn + 1);
+  const crowdL = fN > 15 || (q.fund7 != null && apr(q.fund7) > 15), crowdS = fN < -5 || (q.fund7 != null && apr(q.fund7) < -5);
+  let cls = 'wait', txt;
+  if(ratio > 1.4 && !crowdL){ cls = 'go'; txt = tr(`<b>Short squeeze risk ↑</b> More shorts would be liquidated above the price than longs below${crowdS ? ', and shorts are paying funding' : ''}. A push through the nearest resistance can run to <b>${fmt(q.topS?.px)}</b>.`, `<b>Riziko short squeezu ↑</b> Nad cenou by sa likvidovalo viac shortov ako longov pod ňou${crowdS ? ' a shorty platia funding' : ''}. Prerazenie najbližšieho odporu môže cenu vystreliť k <b>${fmt(q.topS?.px)}</b>.`); }
+  else if(ratio < 0.7 && !crowdS){ cls = 'gone'; txt = tr(`<b>Long squeeze risk ↓</b> More longs would be liquidated below the price than shorts above${crowdL ? ', and longs are paying high funding' : ''}. A break of the nearest support can flush to <b>${fmt(q.topL?.px)}</b>.`, `<b>Riziko long squeezu ↓</b> Pod cenou by sa likvidovalo viac longov ako shortov nad ňou${crowdL ? ' a longy platia vysoký funding' : ''}. Prerazenie najbližšej podpory môže cenu zraziť k <b>${fmt(q.topL?.px)}</b>.`); }
+  else txt = tr(`<b>Balanced.</b> Liquidity is spread on both sides. Magnets: up <b>${fmt(q.topS?.px)}</b>, down <b>${fmt(q.topL?.px)}</b>.`, `<b>Vyrovnané.</b> Likvidity sú na oboch stranách. Magnety: hore <b>${fmt(q.topS?.px)}</b>, dole <b>${fmt(q.topL?.px)}</b>.`);
+  if(crowdL && cls !== 'gone') txt += ' ' + tr('Longs pay high funding: the crowd is long.', 'Longy platia vysoký funding: dav je v longu.');
+  if(crowdS && cls !== 'go') txt += ' ' + tr('Shorts pay funding: the crowd is short.', 'Shorty platia funding: dav je v shorte.');
+  if(q.oiChg && Math.abs(q.oiChg.pct) >= 3){
+    const newPos = q.oiChg.pct > 0, upPx = q.oiChg.pxPct > 0;
+    txt += ' ' + (newPos ? (upPx ? tr('Open interest is rising with price: new longs are piling in.', 'Open interest rastie s cenou: pribúdajú nové longy.') : tr('Open interest is rising while price falls: new shorts are piling in.', 'Open interest rastie a cena klesá: pribúdajú nové shorty.'))
+      : (upPx ? tr('Open interest is falling while price rises: shorts are covering.', 'Open interest klesá a cena rastie: shorty zatvárajú.') : tr('Open interest is falling with price: longs are closing.', 'Open interest klesá s cenou: longy zatvárajú.')));
+  }
+  return {cls, txt, fN};
+}
+function renderLiqCard(){
+  const el = $('#liqCard'), q = state.liq; if(!el) return;
+  if(!q || q.coin !== state.coin){ el.innerHTML = `<h3><span>🧲 ${tr('Liquidity & squeeze radar', 'Likvidity a squeeze radar')}</span></h3><div class="hint"><span class="spin"></span> ${tr('Loading…', 'Načítavam…')}</div>`; return; }
+  const r = squeezeRead(q), P = q.P, apr = f => f == null ? '–' : (f * 24 * 365 * 100).toFixed(1) + ' %';
+  // ladder: 1 % buckets from +8 % to -8 %
+  const buck = []; for(let k = 8; k >= -8; k--){ if(k === 0) continue; const a = P * (1 + (k > 0 ? k - 1 : k) / 100), b = P * (1 + (k > 0 ? k : k + 1) / 100);
+    const rows = k > 0 ? q.est.S : q.est.L, v = rows.filter(x => x.px >= a && x.px < b).reduce((s, x) => s + x.v, 0);
+    const bk = q.bidWall && k < 0 && q.bidWall.px >= a && q.bidWall.px < b ? q.bidWall : q.askWall && k > 0 && q.askWall.px >= a && q.askWall.px < b ? q.askWall : null;
+    buck.push({k, px:(a + b) / 2, v, wall:bk}); }
+  const mx = Math.max(1, ...buck.map(x => x.v));
+  const lad = buck.map(x => (x.k === -1 ? `<div class="now">${tr('price', 'cena')} ${fmt(P)}</div>` : '') + `<span class="px">${fmt(x.px)}</span><div><div class="bar ${x.k > 0 ? 's' : 'l'}" style="width:${Math.max(1, x.v / mx * 100).toFixed(0)}%"></div></div><span class="wall">${x.wall ? '🧱 ' + fmtUsd(x.wall.usd) : ''}</span>`).join('');
+  el.innerHTML = `<h3><span>🧲 ${tr('Liquidity & squeeze radar', 'Likvidity a squeeze radar')} · ${esc(q.coin)}</span><button class="btn sm" id="liqRefresh" title="Refresh">↻</button></h3>
+    <div class="lq-sum sc-st ${r.cls}" style="font-weight:500">${r.txt}</div>
+    <div class="lq-kv">
+      <div><small>${tr('Funding now (per year)', 'Funding teraz (ročne)')}</small><b class="${q.fundNow > 0 ? 'down' : 'up'}">${apr(q.fundNow)}</b></div>
+      <div><small>${tr('Funding 7-day avg', 'Funding priemer 7 dní')}</small><b>${apr(q.fund7)}</b></div>
+      <div><small>Open interest</small><b>${fmtUsd(q.oi)}${q.oiChg ? ` <span class="${q.oiChg.pct >= 0 ? 'up' : 'down'}">${q.oiChg.pct >= 0 ? '+' : ''}${q.oiChg.pct.toFixed(1)} % / ${q.oiChg.hours}h</span>` : ''}</b></div>
+      <div><small>${tr('Order book ±2 % (bids / asks)', 'Kniha ±2 % (nákup / predaj)')}</small><b>${fmtUsd(q.bidDepth)} / ${fmtUsd(q.askDepth)}</b></div>
+    </div>
+    <div class="sub" style="margin-top:0">${tr('Where liquidations sit (estimate)', 'Kde ležia likvidácie (odhad)')}</div>
+    <div class="lq-lad">${lad}</div>
+    <div class="hint" style="margin-top:8px">${tr('Teal above = shorts that would be liquidated, red below = longs. Price often runs to these clusters. 🧱 = biggest real order-book wall. The clusters are an estimate from volume and typical leverage over the last ~12 days, because nobody publishes other traders positions.', 'Tyrkysové hore = shorty, ktoré by sa likvidovali, červené dole = longy. Cena si po tieto zhluky často ide. 🧱 = najväčšia skutočná stena v knihe príkazov. Zhluky sú odhad z objemu a typických pák za posledných ~12 dní, lebo pozície ostatných nikto nezverejňuje.')}${q.oiChg ? '' : ' ' + tr('Open-interest change appears after the app has been open a few hours.', 'Zmena open interestu sa ukáže, keď appka pobeží aspoň pár hodín.')}</div>`;
+  $('#liqRefresh').onclick = () => renderLiq(true);
+  // strongest cluster on each side as a faint line on the chart
+  (state.liqLines || []).forEach(l => { try{ cSeries.removePriceLine(l); }catch(e){} }); state.liqLines = [];
+  for(const m of [q.topS, q.topL]) if(m) state.liqLines.push(cSeries.createPriceLine({price:m.px, color:'rgba(240,185,90,.55)', lineWidth:1, lineStyle:1, axisLabelVisible:false, title: innerWidth <= 640 ? '' : '🧲 Liq'}));
+}
+async function renderLiq(force){
+  if(!force && state.liq && state.liq.coin === state.coin && Date.now() - state.liq.t < 60000){ renderLiqCard(); return; }
+  if(state.liqBusy) return; state.liqBusy = true;
+  if(!state.liq || state.liq.coin !== state.coin) renderLiqCard();
+  try{ const q = await loadLiq(); if(q && q.coin === state.coin){ state.liq = q; renderLiqCard(); renderScenarios(); } }
+  catch(e){ console.warn('liq', e); } finally{ state.liqBusy = false; }
+}
+setInterval(() => { if(!document.hidden && state.A) renderLiq(); }, 120000);
 
 /* live websocket: candles for the open chart + all mids for price alerts */
 function connectWS(){
