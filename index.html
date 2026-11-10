@@ -10,7 +10,11 @@
 <meta name="apple-mobile-web-app-title" content="JARVIS">
 <meta name="description" content="J.A.R.V.I.S. - personal crypto trading assistant: technical analysis, trade calls with entries, SL and TP, scanner, journal and alerts.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%230f1a1f%27/%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2721%27 fill=%27none%27 stroke=%27%2397fce4%27 stroke-width=%275%27/%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%279%27 fill=%27%2397fce4%27/%3E%3C/svg%3E">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 fill=%27%230f1a1f%27/%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2721%27 fill=%27none%27 stroke=%27%2397fce4%27 stroke-width=%275%27/%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%279%27 fill=%27%2397fce4%27/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="J.A.R.V.I.S.">
 <title>J.A.R.V.I.S.</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -249,6 +253,14 @@ body.simple .toast{bottom:calc(78px + env(safe-area-inset-bottom,0px))}
 .help summary{cursor:pointer;padding:10px 0;font-weight:600}
 .help p{color:var(--muted);line-height:1.55;margin:0 0 10px}
 #btnMode{font-weight:700}
+.szl{font-size:12.5px;line-height:1.45;color:var(--muted);margin:2px 0 8px}
+.szl b{color:var(--text)} .szl.bad{color:var(--amber)}
+#wEditBox[hidden]{display:none}
+.szbar{display:flex;gap:8px;align-items:flex-end;margin:0 0 10px}
+.szbar label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted);font-weight:600;min-width:0;flex:1}
+.szbar input{width:100%;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--text);padding:7px 8px;font-size:13px}
+.wx{font-size:13px;color:var(--muted);line-height:1.45;margin-top:6px}
+.wx b{color:var(--text)}
 .scn{border:1px solid var(--line);border-radius:10px;padding:10px 11px;margin-bottom:8px;background:var(--panel2)}
 .scn-h{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-weight:700}
 .scn-h .k{color:var(--muted);font-weight:600;font-size:12px;margin-left:auto}
@@ -2242,13 +2254,13 @@ function runAnalysis(){
 /* ============================================================
    Scenarios: both sides at once, each with its condition, best reward-to-risk first
    ============================================================ */
-function buildScenarios(A){
+function buildScenarios(A, coin){
   const out = [];
   for(const dir of ['long', 'short']){
-    const plan = buildPlan(A, dir), call = composeCall(A, dir, scoreDir(A, dir, plan.market ? null : plan.e1), plan);
+    const plan = buildPlan(A, dir), call = composeCall(A, dir, scoreDir(A, dir, plan.market ? null : plan.e1), plan, coin);
     out.push({kind: call.ran ? 'ran' : 'main', call});
     if(call.ran){ // the tested zone plan already played out: offer a fresh plan from nearer structure, clearly marked
-      const fp = buildPlan(A, dir, {fresh:true}), fc = composeCall(A, dir, scoreDir(A, dir, fp.market ? null : fp.e1), fp);
+      const fp = buildPlan(A, dir, {fresh:true}), fc = composeCall(A, dir, scoreDir(A, dir, fp.market ? null : fp.e1), fp, coin);
       if(!fc.ran && fp.rr2 >= 1.5) out.push({kind:'fresh', call:fc});
     }
   }
@@ -2256,25 +2268,51 @@ function buildScenarios(A){
   const rank = x => x.kind === 'ran' ? -99 : (x.call.vclass === 'valid' ? 10 : 0) + x.call.score - x.call.thr + Math.min(x.call.plan.rr2, 5) * 0.4 - (x.kind === 'fresh' ? 2 : 0);
   return out.sort((a, b) => rank(b) - rank(a));
 }
+function scenCond(x){
+  const c = x.call, p = c.plan;
+  if(x.kind === 'ran') return tr(`The ${c.dir} from ${fmt(p.e1)} already ran towards its targets. Don't chase it.`, `${c.dir === 'long' ? 'Long' : 'Short'} z ${fmt(p.e1)} už bežal k cieľom. Nenaháňaj ho.`);
+  const pre = x.kind === 'fresh' ? tr('New plan from the current price (less tested, smaller size). ', 'Nový plán od aktuálnej ceny (menej otestovaný, menšia pozícia). ') : '';
+  if(c.vclass === 'valid') return pre + (p.market ? tr('Price is in the zone now.', 'Cena je teraz v zóne.') : tr(`Limit at ${fmt(p.e1)} (${p.dist.toFixed(1)} % away), wait for price to come.`, `Limitka na ${fmt(p.e1)} (${p.dist.toFixed(1)} % od ceny), počkaj, kým príde.`));
+  return pre + tr('If: ', 'Ak: ') + (c.conditions[0] || tr('more confluence', 'viac dôvodov')) + tr(` (${c.score.toFixed(1)} / ${c.thr} points)`, ` (${c.score.toFixed(1)} / ${c.thr} b.)`);
+}
+/* position size for a plan: risk in $, leverage, and where an isolated position would be liquidated vs the stop */
+function sizeInfo(plan, coin){
+  const s = plan.dir === 'long' ? 1 : -1, e = plan.avg, dist = Math.abs(e - plan.sl), d = dist / e;
+  const risk = +S().szRisk > 0 ? +S().szRisk : Math.max(5, Math.round(paperEquity() * 0.01));
+  const qty = risk / dist, maxLev = ctxOf(coin)?.maxLev || 20, mm = 0.5 / maxLev;
+  const safeLev = Math.max(1, Math.min(maxLev, Math.floor(1 / (1.5 * d + mm)))); // liquidation at least 1.5x the stop distance away
+  const autoLev = Math.min(10, safeLev); // auto suggestion stays modest: less margin at risk if the exchange or a wick misbehaves
+  const lev = +S().szLev > 0 ? Math.min(+S().szLev, maxLev) : autoLev;
+  const liq = e * (1 - s * (1 / lev - mm)), ok = Math.abs(e - liq) >= 1.2 * dist;
+  return {risk, qty, notional:qty * e, lev, safeLev, margin:qty * e / lev, liq, ok};
+}
+function sizeLine(plan, coin){
+  const z = sizeInfo(plan, coin), q = z.qty >= 100 ? z.qty.toFixed(0) : z.qty.toPrecision(3);
+  return `<div class="szl ${z.ok ? '' : 'bad'}">📐 ${tr(`Risk ${fmtUsd(z.risk)}: <b>${q} ${esc(coin)}</b> (≈ ${fmtUsd(z.notional)}), leverage ${z.lev}x, margin ${fmtUsd(z.margin)}.`, `Riziko ${fmtUsd(z.risk)}: <b>${q} ${esc(coin)}</b> (≈ ${fmtUsd(z.notional)}), páka ${z.lev}x, marža ${fmtUsd(z.margin)}.`)}
+    ${z.ok ? tr(`Liquidation ~${fmt(z.liq)} ✅ well beyond the stop.`, `Likvidácia ~${fmt(z.liq)} ✅ je bezpečne za stopom.`) : tr(`⚠️ Liquidation ~${fmt(z.liq)} is too close to the stop, use max ${z.safeLev}x.`, `⚠️ Likvidácia ~${fmt(z.liq)} je príliš blízko stopu, daj max ${z.safeLev}x.`)}</div>`;
+}
+function szBar(){
+  return `<div class="szbar"><label>${tr('I risk $', 'Riskujem $')}<input id="szRisk" class="mono" inputmode="decimal" value="${+S().szRisk > 0 ? +S().szRisk : ''}" placeholder="${Math.max(5, Math.round(paperEquity() * 0.01))}"></label>
+    <label>${tr('Leverage', 'Páka')}<input id="szLev" class="mono" inputmode="numeric" value="${+S().szLev > 0 ? +S().szLev : ''}" placeholder="auto"></label></div>`;
+}
+document.addEventListener('change', e => {
+  if(e.target.id !== 'szRisk' && e.target.id !== 'szLev') return;
+  S()[e.target.id] = Math.max(0, num(e.target.value) || 0); persist();
+  renderScenarios(); if(document.body.dataset.view === 'home') renderHome();
+});
 function renderScenarios(){
   const el = $('#scenCard'), A = state.A; if(!el || !A) return;
-  state.scen = buildScenarios(A);
+  state.scen = buildScenarios(A, state.coin);
   const lv = (k, v, c = '') => `<div class="${c}"><small>${k}</small><span>${v}</span></div>`;
   const tag = x => x.kind === 'ran' ? `<span class="pill no">${tr('RAN', 'UTIEKLO')}</span>` : `<span class="pill ${x.call.vclass}">${x.call.vclass === 'valid' ? tr('TRADE', 'OBCHODUJ') : x.call.vclass === 'watch' ? tr('WAIT', 'ČAKAJ') : tr('NO', 'NIE')}</span>`;
-  const cond = x => {
-    const c = x.call, p = c.plan;
-    if(x.kind === 'ran') return tr(`The ${c.dir} from ${fmt(p.e1)} already ran towards its targets. Don't chase it.`, `${c.dir === 'long' ? 'Long' : 'Short'} z ${fmt(p.e1)} už bežal k cieľom. Nenaháňaj ho.`);
-    const pre = x.kind === 'fresh' ? tr('New plan from the current price (less tested, smaller size). ', 'Nový plán od aktuálnej ceny (menej otestovaný, menšia pozícia). ') : '';
-    if(c.vclass === 'valid') return pre + (p.market ? tr('Price is in the zone now.', 'Cena je teraz v zóne.') : tr(`Limit at ${fmt(p.e1)} (${p.dist.toFixed(1)} % away), wait for price to come.`, `Limitka na ${fmt(p.e1)} (${p.dist.toFixed(1)} % od ceny), počkaj, kým príde.`));
-    return pre + tr('If: ', 'Ak: ') + (c.conditions[0] || tr('more confluence', 'viac dôvodov')) + tr(` (${c.score.toFixed(1)} / ${c.thr} points)`, ` (${c.score.toFixed(1)} / ${c.thr} b.)`);
-  };
+  const cond = scenCond;
   const lq = state.liq && state.liq.coin === state.coin ? state.liq : null, mag = lq ? [lq.topS, lq.topL].filter(Boolean) : [];
   el.innerHTML = `<h3><span>🧭 ${tr('Scenarios', 'Scenáre')} · ${esc(state.coin)} ${TFLABEL[A.tf]}</span></h3>
-    <div class="hint" style="margin:-4px 0 10px">${tr('Both directions at once, the best one first (setup strength and reward-to-risk). If nothing fits now, these are the plans waiting for price. Tap one to see it on the chart.', 'Oba smery naraz, najlepší hore (sila setupu a pomer zisk/riziko). Keď teraz nič nesedí, toto sú plány, ktoré čakajú na cenu. Ťukni a ukáže sa na grafe.')}</div>
+    ${macroWarn()}${szBar()}<div class="hint" style="margin:-4px 0 10px">${tr('Both directions at once, the best one first (setup strength and reward-to-risk). If nothing fits now, these are the plans waiting for price. Tap one to see it on the chart.', 'Oba smery naraz, najlepší hore (sila setupu a pomer zisk/riziko). Keď teraz nič nesedí, toto sú plány, ktoré čakajú na cenu. Ťukni a ukáže sa na grafe.')}</div>
     ${state.scen.map((x, i) => { const c = x.call, p = c.plan; return `<div class="scn ${x.kind === 'ran' ? 'ran' : ''}" data-scen="${i}" style="cursor:pointer">
       <div class="scn-h"><span class="badge ${c.dir}">${c.dir === 'long' ? 'LONG' : 'SHORT'}</span>${tag(x)}${x.kind === 'fresh' ? `<span class="pill watch">${tr('new plan', 'nový plán')}</span>` : ''}<span class="k">${c.score.toFixed(1)} / ${c.thr}</span></div>
       <div class="scn-if">${cond(x)}</div>
-      ${x.kind === 'ran' ? '' : `<div class="sc-lv">${lv('Entry', fmt(p.e1))}${lv('Stop', fmt(p.sl), 'stp')}${lv('TP1 / TP2', fmt(p.tp1) + ' / ' + fmt(p.tp2), 'tgt')}${lv('R:R', p.rr1.toFixed(1) + ' / ' + p.rr2.toFixed(1))}</div><button class="btn sm" data-scalert="${i}">🔔 ${tr('Alert me at', 'Upozorni ma na')} ${fmt(p.e1)}</button>`}</div>`; }).join('')}
+      ${x.kind === 'ran' ? '' : `<div class="sc-lv">${lv('Entry', fmt(p.e1))}${lv('Stop', fmt(p.sl), 'stp')}${lv('TP1 / TP2', fmt(p.tp1) + ' / ' + fmt(p.tp2), 'tgt')}${lv('R:R', p.rr1.toFixed(1) + ' / ' + p.rr2.toFixed(1))}</div>${sizeLine(p, c.coin)}<button class="btn sm" data-scalert="${i}">🔔 ${tr('Alert me at', 'Upozorni ma na')} ${fmt(p.e1)}</button>`}</div>`; }).join('')}
     ${mag.length ? `<div class="hint">🧲 ${tr('Liquidity magnets', 'Magnety likvidity')}: ${mag.map(m => `${m.side === 's' ? tr('shorts liq.', 'likv. shortov') : tr('longs liq.', 'likv. longov')} ${fmt(m.px)}`).join(' · ')}</div>` : ''}`;
 }
 document.addEventListener('click', e => {
@@ -2309,9 +2347,9 @@ function liqEstimate(C, P, maxLev){
   const rows = m => [...m].map(([k, v]) => ({px:k * step, v}));
   return {L:rows(L), S:rows(S), step};
 }
-async function loadLiq(){
-  const coin = state.coin, ctx = ctxOf(coin), P = midOf(coin) ?? state.C.at(-1)?.c; if(!ctx || !P) return null;
-  const C = (state.tfData && state.tfData['1h']?.length > 100 ? state.tfData['1h'] : null) || await fetchCandles(coin, '1h', 300).catch(() => null);
+async function loadLiq(coin = state.coin){
+  const ctx = ctxOf(coin), P = midOf(coin) ?? (coin === state.coin ? state.C.at(-1)?.c : ctx?.mark); if(!ctx || !P) return null;
+  const C = (coin === state.coin && state.tfData && state.tfData['1h']?.length > 100 ? state.tfData['1h'] : null) || await fetchCandles(coin, '1h', 300).catch(() => null);
   if(!C || C.length < 50) return null;
   const est = liqEstimate(C, P, ctx.maxLev || 20);
   let book = null, fund = null;
@@ -3985,8 +4023,8 @@ function renderHome(){
   const order = {go:0, wait:1}; // tested trades first (in the zone, then nearest); far pullback plans separately (the bot skips them)
   const valid = rows.filter(r => r.vclass === 'valid').map(c => ({c, st:callStatus(c)}));
   const near = valid.filter(x => !x.st.far).sort((a, b) => order[a.st.cls] - order[b.st.cls] || a.c.plan.dist - b.c.plan.dist), far = valid.filter(x => x.st.far).sort((a, b) => a.c.plan.dist - b.c.plan.dist);
-  homeCalls = [...near, ...far].map(x => x.c);
-  const watch = rows.filter(r => r.vclass === 'watch').sort((a, b) => (b.score - b.thr) - (a.score - a.thr)).slice(0, 5);
+  homeCalls = near.map(x => x.c);
+  const watch = rows.filter(r => r.vclass === 'watch').sort((a, b) => (b.score - b.thr) - (a.score - a.thr)).slice(0, 3);
   const hr = new Date().getHours(), hi = hr < 10 ? tr('Good morning', 'Dobré ráno') : hr < 18 ? tr('Hello', 'Ahoj') : tr('Good evening', 'Dobrý večer');
   const b = btcDay, mk = !b ? `<span class="spin"></span> ${tr('Reading the market…', 'Čítam trh…')}`
     : b.score >= 2 ? tr(`<b>Bitcoin is in an uptrend</b> on the daily chart. Longs have the wind at their back today.`, `<b>Bitcoin je na dennom grafe v uptrende.</b> Longy majú dnes vietor v chrbte.`)
@@ -4005,11 +4043,11 @@ function renderHome(){
     <p class="sv-sub">${tr('Here is what J.A.R.V.I.S. sees on the 30 biggest coins (4h, the tested setup).', 'Toto vidí J.A.R.V.I.S. na 30 najväčších coinoch (4h, otestovaný setup).')}</p>
     <div class="mkt"><span class="ic">${icon}</span><div>${mk}</div></div>
     ${macroWarn()}
+    ${watchHtml()}
     <div class="sv-sec"><span>🎯 ${tr('Trades for today', 'Obchody na dnes')} (${near.length})</span><button class="btn sm" id="hRefresh">↻ ${sc ? new Date(sc.t).toLocaleTimeString(LANG === 'sk' ? 'sk-SK' : 'en-GB', {hour:'2-digit', minute:'2-digit'}) : ''}</button></div>
     ${!sc ? `<div class="empty2"><span class="spin"></span> ${tr('Scanning 30 coins… this takes about a minute.', 'Skenujem 30 coinov… trvá to asi minútu.')}</div>`
       : near.length ? near.map((x, i) => card(x.c, i)).join('')
       : `<div class="empty2">😌 ${tr('No trade worth taking right now. That is normal: good setups come a few times a week. J.A.R.V.I.S. keeps watching.', 'Teraz tu nie je obchod, ktorý by stál za to. To je normálne: dobré setupy prídu pár razy do týždňa. J.A.R.V.I.S. sleduje ďalej.')}</div>`}
-    ${far.length ? `<div class="sv-sec"><span>📌 ${tr('Far pullback plans', 'Plány na hlboký návrat')} (${far.length})</span></div><p class="sv-sub" style="margin-top:-4px">${tr('The entry is beyond the first target, so these were not part of the tested setup. Use them only as limit orders if you like the idea.', 'Vstup je až za prvým cieľom, preto neboli súčasťou otestovaného setupu. Ber ich len ako limitky, ak sa ti idea páči.')}</p>${far.map((x, i) => card(x.c, near.length + i)).join('')}` : ''}
     ${watch.length ? `<div class="sv-sec"><span>👀 ${tr('Almost there', 'Skoro hotové')}</span></div>
       ${watch.map(c => `<div class="wrow" data-wcoin="${esc(c.coin)}"><span class="w1">${esc(c.coin)} <span class="badge ${c.dir}">${c.dir === 'long' ? 'L' : 'S'}</span></span><span class="w2">${tr('missing', 'chýba')}: ${esc(c.conditions[0] || tr('more confluence', 'viac dôvodov'))}</span></div>`).join('')}` : ''}
     <details class="help"><summary>❔ ${tr('How to read a trade', 'Ako čítať obchod')}</summary>
@@ -4020,6 +4058,68 @@ function renderHome(){
       <p>${tr('Honest track record: price reaches the entry in about 3 of 10 trades, and roughly half of those reach Target 1 before the stop. The edge is small, so keep the risk small (1 % of your account per trade).', 'Poctivá štatistika: cena príde na vstup asi pri 3 z 10 obchodov a zhruba polovica z nich dôjde k Cieľu 1 skôr ako na stop. Výhoda je malá, preto riskuj málo (1 % účtu na obchod).')}</p>
     </details>`;
 }
+/* ---- my coins: the ones Kamil trades, analysed on every visit of Today ---- */
+const watchData = {};
+const watchList = () => (S().watch && S().watch.length ? S().watch : ['ETH', 'BTC']);
+async function loadWatch(coin){
+  // same inputs as the chart analysis (load + runAnalysis), so Today and the chart show the same points
+  const [C, H, BH, M15, M1] = await Promise.all([fetchCandles(coin, '4h', 1000), fetchCandles(coin, '1d', 400), coin === 'BTC' ? null : fetchCandles('BTC', '1d', 400),
+    fetchCandles(coin, '15m', 300).catch(() => null), fetchCandles(coin, '1h', 300).catch(() => null)]);
+  if(C.length < 80) return;
+  const A = analyze(C, H, ctxOf(coin), '4h');
+  A.btc = BH ? htfBias(BH) : null;
+  A.mtf = Object.fromEntries([['15m', M15], ['1h', M1], ['4h', C], ['1d', H]].filter(([, x]) => x && x.length >= 60).map(([k, x]) => [k, htfBias(x)]));
+  const scen = buildScenarios(A, coin), liq = await loadLiq(coin).catch(() => null);
+  watchData[coin] = {t:Date.now(), P:A.P, scen, liq};
+}
+async function refreshWatch(force){
+  if(!state.ctxs.length) await refreshCtx();
+  for(const coin of watchList()){
+    const w = watchData[coin]; if(!force && w && Date.now() - w.t < 5 * 60000) continue;
+    try{ await loadWatch(coin); }catch(e){ console.warn('watch', coin, e); }
+    if(document.body.dataset.view === 'home') renderHome();
+  }
+}
+function watchHtml(){
+  const lv = (k, v, c = '') => `<div class="${c}"><small>${k}</small><span>${v}</span></div>`;
+  const card = coin => {
+    const w = watchData[coin], ctx = ctxOf(coin);
+    if(!w) return `<div class="sc"><div class="sc-top"><span class="coin">${esc(coin)}</span></div><div class="hint"><span class="spin"></span> ${tr('Analysing…', 'Analyzujem…')}</div></div>`;
+    const P = midOf(coin) ?? w.P, ch = ctx?.prev ? (P / ctx.prev - 1) * 100 : null;
+    const live = w.scen.filter(x => x.kind !== 'ran'), best = live[0], alt = live[1];
+    const ran = w.scen.find(x => x.kind === 'ran' && x.call.score >= x.call.thr);
+    let body;
+    if(!best) body = `<div class="sc-st gone">${tr('No plan on either side right now.', 'Teraz nie je plán ani na jednu stranu.')}</div>`;
+    else { const c = best.call, p = c.plan, cls = c.vclass === 'valid' ? (p.market ? 'go' : 'wait') : c.vclass === 'watch' ? 'wait' : 'gone';
+      body = `<div class="sc-st ${cls}"><span class="badge ${c.dir}">${c.dir === 'long' ? 'LONG' : 'SHORT'}</span> ${c.vclass === 'valid' ? tr('TRADE', 'OBCHODUJ') : c.vclass === 'watch' ? tr('WAIT', 'ČAKAJ') : tr('NO', 'NIE')} · ${c.score.toFixed(1)} / ${c.thr}<div style="font-weight:500;margin-top:4px">${scenCond(best)}</div></div>
+        <div class="sc-lv">${lv(tr('Entry', 'Vstup'), fmt(p.e1))}${lv('Stop', fmt(p.sl), 'stp')}${lv('TP2', fmt(p.tp2), 'tgt')}${lv('R:R', p.rr2.toFixed(1))}</div>
+        ${sizeLine(p, coin)}`; }
+    const extra = [
+      alt ? `↔️ ${tr('Alternative', 'Alternatíva')}: <b>${alt.call.dir === 'long' ? 'LONG' : 'SHORT'}</b> ${alt.call.vclass === 'valid' ? tr('TRADE', 'OBCHODUJ') : alt.call.vclass === 'watch' ? tr('WAIT', 'ČAKAJ') : tr('NO', 'NIE')} ${fmt(alt.call.plan.e1)} → ${fmt(alt.call.plan.tp2)} (RR ${alt.call.plan.rr2.toFixed(1)})` : '',
+      ran ? `⏱ ${tr(`The ${ran.call.dir} from ${fmt(ran.call.plan.e1)} already ran, don't chase it.`, `${ran.call.dir === 'long' ? 'Long' : 'Short'} z ${fmt(ran.call.plan.e1)} už utiekol, nenaháňaj ho.`)}` : '',
+      w.liq ? `🧲 ${squeezeRead(w.liq).txt.match(/<b>(.*?)<\/b>/)?.[1] || ''} ${tr('Magnets', 'Magnety')}: ↑ ${fmt(w.liq.topS?.px)} · ↓ ${fmt(w.liq.topL?.px)}` : '',
+    ].filter(Boolean).map(t => `<div class="wx">${t}</div>`).join('');
+    return `<div class="sc"><div class="sc-top"><span class="coin">${esc(coin)}</span><span class="tfl">4h · ${fmt(P)}${ch != null ? ` · <span class="${ch >= 0 ? 'up' : 'down'}">${ch >= 0 ? '+' : ''}${ch.toFixed(1)} %</span>` : ''}</span></div>
+      ${body}${extra}
+      <div class="sc-btn" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:10px"><button class="btn" data-wchart="${esc(coin)}">📈 ${tr('Chart & scenarios', 'Graf a scenáre')}</button>${best ? `<button class="btn" data-walert="${esc(coin)}">🔔 ${tr('Alert at', 'Upozorni na')} ${fmt(best.call.plan.e1)}</button>` : '<span></span>'}</div></div>`;
+  };
+  return `<div class="sv-sec"><span>⭐ ${tr('My coins', 'Moje coiny')}</span><button class="btn sm" id="wEdit">${tr('Edit', 'Upraviť')}</button></div>
+    <div id="wEditBox" class="szbar" hidden><label style="flex:1">${tr('Coins, comma separated', 'Coiny oddelené čiarkou')}<input id="wList" class="mono" value="${esc(watchList().join(', '))}"></label><button class="btn sm fill" id="wSave">${tr('Save', 'Uložiť')}</button></div>
+    ${szBar()}
+    ${watchList().map(card).join('')}`;
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-wchart],[data-walert],#wEdit,#wSave'); if(!t) return;
+  if(t.id === 'wEdit'){ $('#wEditBox').hidden = !$('#wEditBox').hidden; return; }
+  if(t.id === 'wSave'){
+    const list = $('#wList').value.split(/[ ,;]+/).map(x => x.trim()).filter(Boolean).map(x => state.ctxs.find(c => c.name.toUpperCase() === x.toUpperCase())?.name).filter(Boolean);
+    S().watch = [...new Set(list)].slice(0, 6); persist(); renderHome(); refreshWatch(); return;
+  }
+  if(t.dataset.wchart){ state.tf = '4h'; S().tf = '4h'; setView('chart'); setCoin(t.dataset.wchart); return; }
+  const w = watchData[t.dataset.walert], best = w?.scen.find(x => x.kind !== 'ran');
+  if(best) addPriceAlert(t.dataset.walert, best.call.plan.e1, `${best.call.dir.toUpperCase()} 4h: E1 ${fmt(best.call.plan.e1)} · SL ${fmt(best.call.plan.sl)} · TP2 ${fmt(best.call.plan.tp2)}`);
+});
+setInterval(() => { if(!document.hidden && document.body.dataset.view === 'home') refreshWatch(); }, 5 * 60000);
 function openCallChart(c){ state.tf = c.tf; S().tf = c.tf; setView('chart'); setCoin(c.coin); }
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-hchart],[data-hdemo],[data-hlive],[data-wcoin],#hRefresh'); if(!t) return;
@@ -4102,7 +4202,7 @@ document.addEventListener('click', e => {
 function setView(v){
   document.body.dataset.view = v; S().sview = v; persist();
   $$('#snav button').forEach(b => b.classList.toggle('on', b.dataset.sv === v));
-  if(v === 'home'){ renderHome(); loadBtcDay(); if(!scanCache['4h'] || Date.now() - scanCache['4h'].t > 10 * 60000) refreshTop(); }
+  if(v === 'home'){ renderHome(); loadBtcDay(); refreshWatch(); if(!scanCache['4h'] || Date.now() - scanCache['4h'].t > 10 * 60000) refreshTop(); }
   if(v === 'mine') renderMine();
   if(v === 'ask'){ renderAsk(); $('#askOut').innerHTML = ''; if(state.tf !== '4h'){ state.tf = '4h'; S().tf = '4h'; syncCoinUI(); load(); } } // answers on 4h, the tested timeframe
   document.querySelector('header').scrollIntoView({block:'start'});
@@ -4200,6 +4300,7 @@ document.addEventListener('keydown', e => {
   setInterval(() => { if($('#tab-trades').classList.contains('on')) renderTrades(); }, 5000);
   if(cloudConfig()) initCloud().catch(e => console.warn(e));
 })();
+if('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {}); // installable on the phone home screen
 </script>
 </body>
 </html>
