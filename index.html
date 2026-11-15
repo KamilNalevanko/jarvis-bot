@@ -253,6 +253,19 @@ body.simple .toast{bottom:calc(78px + env(safe-area-inset-bottom,0px))}
 .help summary{cursor:pointer;padding:10px 0;font-weight:600}
 .help p{color:var(--muted);line-height:1.55;margin:0 0 10px}
 #btnMode{font-weight:700}
+.kl{display:flex;flex-direction:column;gap:3px;font-size:12.5px;margin:2px 0 10px;line-height:1.4}
+.kl .r{color:var(--amber)} .kl .s{color:var(--mint)} .kl b{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:600}
+.card h3[data-fold]{cursor:pointer;user-select:none}
+.card h3 .chev{color:var(--muted);transition:transform .15s;display:inline-block}
+.card.folded h3 .chev{transform:rotate(-90deg)}
+.card.folded .fbody{display:none}
+.wh-bar{height:8px;border-radius:5px;background:rgba(237,112,136,.7);overflow:hidden;margin:0 0 10px}
+.wh-bar span{display:block;height:100%;background:rgba(80,210,193,.85)}
+.lq-kv.wh span{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+.wh-row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.2fr) auto;gap:6px;font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--line);align-items:center}
+.wh-row span{min-width:0;overflow-wrap:anywhere}
+body.simple #callCard .mtf,body.simple #callCard .mtfline,body.simple #callCard .rel,body.simple #callCard .note.bad{display:none}
+#layBtn[hidden]{display:none}
 .szl{font-size:12.5px;line-height:1.45;color:var(--muted);margin:2px 0 8px}
 .szl b{color:var(--text)} .szl.bad{color:var(--amber)}
 #wEditBox[hidden]{display:none}
@@ -425,6 +438,7 @@ header,.side,.bottom,.modal .box,.toast,.legend,.scrollhint{zoom:var(--ui,1)}
       <div class="legend"><span><b style="color:#97fce4">━</b> EMA21</span><span><b style="color:#f0b95a">━</b> EMA50</span><span><b style="color:#a78bfa">━</b> EMA200</span><span data-i18n="zoomHint"></span><span id="srcBadge" class="srcb ok">● Hyperliquid</span><span id="lgStatus"></span></div>
       <button class="scrollhint" id="toTabs" data-i18n="toTabs"></button>
       <button class="fitbtn" id="fitBtn" title="Fit (F)">⤢ Fit</button>
+      <button class="fitbtn" id="layBtn" style="right:auto;left:8px"></button>
     </div>
     <div class="rsiwrap"><div id="rsi"></div></div>
     <div class="bottom">
@@ -543,6 +557,7 @@ header,.side,.bottom,.modal .box,.toast,.legend,.scrollhint{zoom:var(--ui,1)}
     <div class="card" id="callCard"><div class="empty"><span class="spin"></span> <span data-i18n="loading"></span></div></div>
     <div class="card" id="scenCard"></div>
     <div class="card" id="liqCard"></div>
+    <div class="card" id="whaleCard"></div>
     <div class="card" id="indCard"></div>
     <div class="card" id="calcCard">
       <h3><span><span data-i18n="posSize"></span><span class="tip" tabindex="0" data-tip="pos">?</span></span></h3>
@@ -1742,7 +1757,7 @@ $('.side').addEventListener('click', e => {
 $('#editSide').onclick = () => { sideEditing = !sideEditing; applySideLayout(); };
 function applyChartPrefs(){
   applyScale();
-  [e21S, e50S, e200S].forEach(s => s.applyOptions({visible: !!S().showEMA}));
+  [e21S, e50S, e200S].forEach(s => s.applyOptions({visible: !!S().showEMA && !chartClean()}));
   applySideLayout();
 }
 function setChartData(){
@@ -1773,7 +1788,7 @@ function setMarkers(A){
   if(A.pat.bull.length) m.push({time:toTime(A.pat.t), position:'belowBar', color:'#97fce4', shape:'circle', text:A.pat.bull[0].split(' ')[0]});
   if(A.pat.bear.length) m.push({time:toTime(A.pat.t), position:'aboveBar', color:'#ed7088', shape:'circle', text:A.pat.bear[0].split(' ')[0]});
   m.sort((a,b) => a.time - b.time);
-  cSeries.setMarkers(m);
+  cSeries.setMarkers(chartClean() ? m.filter(x => x.text === 'Sweep') : m);
   const keyOf = mk => mk.text === 'Sweep' ? 'Sweep' : mk.text === 'BOS' || mk.text === 'CHoCH' ? mk.text : (mk.position === 'belowBar' ? A.pat.bull[0] : A.pat.bear[0]);
   state.marks = m.map(mk => { const c = state.C.find(k => toTime(k.t) === mk.time); return {time:mk.time, pos:mk.position, hi:c?.h, lo:c?.l, key:keyOf(mk)}; });
 }
@@ -1782,7 +1797,7 @@ function setPriceLines(plan){
   state.priceLines = [];
   const add = (price, color, title, style=0) => state.priceLines.push(cSeries.createPriceLine({price, color, lineWidth:1, lineStyle:style, axisLabelVisible:true, title: innerWidth <= 640 ? '' : title}));
   if(plan){
-    if(plan.tp3 != null) add(plan.tp3, 'rgba(80,210,193,.55)', 'TP3', 3);
+    if(plan.tp3 != null && !chartClean()) add(plan.tp3, 'rgba(80,210,193,.55)', 'TP3', 3);
     add(plan.tp2, '#50d2c1', 'TP2', 2); add(plan.tp1, '#50d2c1', 'TP1', 2);
     add(plan.e1, '#97fce4', 'Entry 1', 2); add(plan.e2, '#97fce4', 'Entry 2', 2);
     add(plan.sl, '#ed7088', 'Stop', 0);
@@ -1792,6 +1807,24 @@ function setPriceLines(plan){
 }
 
 /* overlay: zones, volume profile, position box */
+const chartClean = () => document.body.classList.contains('simple') && !S().chartAll; // simple mode hides zones, patterns, EMAs, volume profile
+/* key supports / resistances: clustered swing points (touches), the 120-candle range edges and the volume POC, nearest 3 each side */
+function keyLevels(A){
+  const P = A.P, x = A.atr, cand = A.levels.map(l => ({p:l.p, w:l.n}));
+  cand.push({p:A.range.hi, w:2.5}, {p:A.range.lo, w:2.5});
+  if(A.vp) cand.push({p:A.vp.poc, w:2});
+  for(const p of [...A.pv.H, ...A.pv.L]) if(p.i > A.n - 120) cand.push({p:p.p, w:1}); // recent swing highs / lows
+  for(const z of [...A.zones.sup, ...A.zones.dem]) cand.push({p:(z.hi + z.lo) / 2, w:1.5}); // order-block zones
+  cand.sort((a, b) => a.p - b.p);
+  const m = [];
+  for(const c of cand){ const l = m[m.length - 1]; if(l && c.p - l.p <= 0.6 * x){ l.p = (l.p * l.w + c.p * c.w) / (l.w + c.w); l.w += c.w; } else m.push({...c}); }
+  return {R:m.filter(l => l.p > P + 0.15 * x && l.p < P * 1.2).sort((a, b) => a.p - b.p).slice(0, 3),
+          S:m.filter(l => l.p < P - 0.15 * x && l.p > P * 0.8).sort((a, b) => b.p - a.p).slice(0, 3)};
+}
+function levelsRow(A){
+  const k = keyLevels(A), f = l => `<b>${fmt(l.p)}</b>${l.w >= 4 ? '💪' : ''}`;
+  return `<div class="kl"><span class="r">▲ ${tr('Resistance', 'Rezistencie')}: ${k.R.map(f).join(' · ') || '–'}</span><span class="s">▼ ${tr('Support', 'Supporty')}: ${k.S.map(f).join(' · ') || '–'}</span></div>`;
+}
 const ov = $('#overlay'), octx = ov.getContext('2d');
 const hot = []; // hover areas: {x, y, w, h, key, prio}
 const addHot = (x, y, w, h, key, prio = 1) => hot.push({x, y, w, h, key, prio});
@@ -1815,13 +1848,13 @@ function drawOverlay(){
     octx.fillStyle = stroke; octx.fillText(label, x0 + 4, y1 + 11);
     addHot(x0, y1 - 2, octx.measureText(label).width + 10, 16, key); addHot(x0, y1, paneW - x0, Math.max(6, y2 - y1), key, 3);
   };
-  if(set.showZones){
+  if(set.showZones && !chartClean()){
     A.zones.dem.forEach(z => zone(z, 'rgba(80,210,193,.08)', 'rgba(80,210,193,.45)', 'Demand OB', 'OBd'));
     A.zones.sup.forEach(z => zone(z, 'rgba(237,112,136,.08)', 'rgba(237,112,136,.45)', 'Supply OB', 'OBs'));
     A.fvg.bull.forEach(z => zone(z, 'rgba(151,252,228,.05)', 'rgba(151,252,228,.25)', 'FVG', 'FVG'));
     A.fvg.bear.forEach(z => zone(z, 'rgba(240,185,90,.05)', 'rgba(240,185,90,.25)', 'FVG', 'FVG'));
   }
-  if(set.showPatterns !== false && A.tl) for(const k of ['down', 'up']){
+  if(set.showPatterns !== false && !chartClean() && A.tl) for(const k of ['down', 'up']){
     const t = A.tl[k]; if(!t) continue;
     const xa = ts.timeToCoordinate(toTime(t.t0)), xb = ts.timeToCoordinate(toTime(t.tN)), ya = y(t.p0), yb = y(t.pN);
     if(xa == null || xb == null || ya == null || yb == null) continue;
@@ -1831,7 +1864,7 @@ function drawOverlay(){
     octx.fillStyle = octx.strokeStyle; octx.fillText(tr('Trendline break', 'Prerazenie trendovky'), xb + 6, yb - 6);
     addHot(xb + 4, yb - 20, octx.measureText(tr('Trendline break', 'Prerazenie trendovky')).width + 8, 18, 'TL');
   }
-  if(set.showPatterns !== false){
+  if(set.showPatterns !== false && !chartClean()){
     for(const [pt, htf] of [[A.cp, false], [A.cpH, true]]){
       if(!pt) continue;
       const col = pt.bias > 0 || pt.broke > 0 ? 'rgba(151,252,228,.85)' : pt.bias < 0 || pt.broke < 0 ? 'rgba(237,112,136,.85)' : 'rgba(240,185,90,.85)';
@@ -1848,7 +1881,7 @@ function drawOverlay(){
       const yl = y(pt.upA); if(yl != null){ const lbl = `${tr(PATNAME[pt.type][0], PATNAME[pt.type][1])}${htf ? ' · ' + TFLABEL[A.htfTf] : ''}`; octx.fillStyle = col; octx.fillText(lbl, x0 + 4, Math.max(12, yl - 6)); addHot(x0, Math.max(12, yl - 6) - 13, octx.measureText(lbl).width + 10, 17, 'P_' + pt.type); }
     }
   }
-  if(set.showVP && A.vp){
+  if(set.showVP && !chartClean() && A.vp){
     const vp = A.vp, maxW = Math.min(110, paneW*0.14);
     for(let i=0;i<vp.vol.length;i++){
       const yt = y(vp.lo + (i+1)*vp.step), yb = y(vp.lo + i*vp.step); if(yt == null || yb == null) continue;
@@ -1898,6 +1931,15 @@ function drawOverlay(){
     const o = l.options(), yy = y(o.price); if(yy == null) continue;
     const t = o.title || '', key = t === 'NOW' ? 'NOW' : t === 'Stop' ? 'SL' : t === 'Entry 1' ? 'E1' : t === 'Entry 2' ? 'E2' : t.includes('Demo') ? 'DEMO' : t === '🔔' ? 'ALERT' : t;
     addHot(paneW, yy - 10, w - paneW, 20, key, 0); addHot(paneW - 90, yy - 10, 90, 20, key, 2);
+  }
+  if(set.showSR !== false){ // key supports / resistances
+    const k = keyLevels(A);
+    for(const [arr, col, tag] of [[k.R, '240,185,90', 'R'], [k.S, '151,252,228', 'S']]) arr.forEach((l, i) => {
+      const yy = y(l.p); if(yy == null) return;
+      octx.strokeStyle = `rgba(${col},${l.w >= 4 ? .75 : .45})`; octx.lineWidth = l.w >= 4 ? 1.5 : 1; octx.setLineDash([6, 4]);
+      octx.beginPath(); octx.moveTo(0, yy + .5); octx.lineTo(paneW, yy + .5); octx.stroke(); octx.setLineDash([]);
+      const lbl = `${tag}${i + 1} ${fmt(l.p)}`; octx.fillStyle = `rgba(${col},.95)`; octx.fillText(lbl, 6, yy - 4);
+    });
   }
   const lc = state.C.at(-1), lx = ts.timeToCoordinate(toTime(lc.t)), ly = y(lc.c);
   if(lx != null && ly != null){
@@ -2029,7 +2071,7 @@ function renderCall(){
     <div class="verdict ${call.vclass}"><span><small>${esc(call.coin)} · ${TFLABEL[call.tf]}${tip('verdict')}</small>${icon} ${call.verdict}</span><span class="badge ${call.dir}">${long ? 'LONG' : 'SHORT'}</span></div>
     <div class="vsub">${call.vsub || ''}</div>
     ${mtf}
-    ${!state.ideaCall && state.mtfCalls?.length && call.coin === state.coin ? `<div class="hint" style="margin:-4px 0 12px">🧭 <b>${call.dir.toUpperCase()}</b>: ${state.mtfCalls.map(r => `<span ${r.tf === state.tf ? '' : `data-usetf="${r.tf}" style="cursor:pointer;text-decoration:underline dotted"`}>${TFLABEL[r.tf]} <b class="${r.call.vclass === 'valid' ? 'up' : r.call.vclass === 'watch' ? '' : 'down'}">${r.call.vclass === 'valid' ? 'TRADE' : r.call.vclass === 'watch' ? 'WAIT' : 'NO'}</b> ${r.call.score.toFixed(1)}/${r.call.thr}</span>`).join(' · ')}</div>` : ''}
+    ${!state.ideaCall && state.mtfCalls?.length && call.coin === state.coin ? `<div class="hint mtfline" style="margin:-4px 0 12px">🧭 <b>${call.dir.toUpperCase()}</b>: ${state.mtfCalls.map(r => `<span ${r.tf === state.tf ? '' : `data-usetf="${r.tf}" style="cursor:pointer;text-decoration:underline dotted"`}>${TFLABEL[r.tf]} <b class="${r.call.vclass === 'valid' ? 'up' : r.call.vclass === 'watch' ? '' : 'down'}">${r.call.vclass === 'valid' ? 'TRADE' : r.call.vclass === 'watch' ? 'WAIT' : 'NO'}</b> ${r.call.score.toFixed(1)}/${r.call.thr}</span>`).join(' · ')}</div>` : ''}
     <div class="kv">
       <span class="k">Ticker</span><span>${esc(call.coin)}-USD <span class="muted">· ${TFLABEL[call.tf]}</span></span>
       <span class="k">Risk Level${tip('risk')}</span><span>${call.riskLevel}</span>
@@ -2075,10 +2117,10 @@ function renderCall(){
 /* measured on 7 months x 60 coins (TRADE IT calls, ADX >= 20): how often the entry is reached and how often TP1 comes before the stop */
 function reliabilityNote(call){
   if(call.vclass === 'no') return '';
-  if(call.tf !== '4h') return `<div class="hint" style="margin:-2px 0 10px">📊 ${tr(
+  if(call.tf !== '4h') return `<div class="hint rel" style="margin:-2px 0 10px">📊 ${tr(
     `<b>Track record:</b> on ${TFLABEL[call.tf]} these setups showed <b>no reliable edge</b> in an honest test. Use ${TFLABEL[call.tf]} for timing and take the trade only when 4h agrees.`,
     `<b>Ako dopadali:</b> na ${TFLABEL[call.tf]} tieto setupy v poctivom teste <b>nemali spoľahlivú výhodu</b>. ${TFLABEL[call.tf]} ber ako načasovanie a obchod ber, len keď súhlasí 4h.`)}</div>`;
-  return `<div class="hint" style="margin:-2px 0 10px">📊 ${tr(
+  return `<div class="hint rel" style="margin:-2px 0 10px">📊 ${tr(
     `<b>Track record of 4h calls</b> (7 months, ~40 coins, honest test): price reaches the entry in about <b>3 of 10</b> calls, so most of them are a plan to wait for, not a must-trade. When it fills, TP1 comes before the stop in <b>~47 %</b>. The small edge comes from trading with the daily trend, taking 50 % at TP1 and moving the stop to entry. On average about +0.1 R per trade, and buying at market instead of the limit was about 0 R. Expect long losing streaks.`,
     `<b>Ako dopadali 4h calls</b> (7 mesiacov, ~40 coinov, poctivý test): cena sa dostane na vstup asi pri <b>3 z 10</b> callov, takže väčšina je plán na čakanie, nie obchod za každú cenu. Keď sa vstup vyplní, TP1 príde skôr ako stop v <b>~47 %</b>. Malú výhodu dáva obchodovanie s denným trendom, výber 50 % na TP1 a stop na vstup. V priemere asi +0,1 R na obchod a vstup za trhovú cenu namiesto limitky bol asi 0 R. Počítaj aj s dlhšími sériami strát.`)}</div>`;
 }
@@ -2248,7 +2290,7 @@ function runAnalysis(){
   setIndicatorData(A);
   setMarkers(A);
   refreshPlanVisuals();
-  renderScenarios(); renderLiq();
+  renderScenarios(); renderLiq(); refreshWhales();
 }
 
 /* ============================================================
@@ -2300,6 +2342,12 @@ document.addEventListener('change', e => {
   S()[e.target.id] = Math.max(0, num(e.target.value) || 0); persist();
   renderScenarios(); if(document.body.dataset.view === 'home') renderHome();
 });
+const foldCls = k => (S().fold || {})[k] ? 'folded' : '';
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-fold]'); if(!t || e.target.closest('button,input,a')) return;
+  const k = t.dataset.fold, f = S().fold ||= {}; f[k] = !f[k]; persist();
+  t.closest('.card')?.classList.toggle('folded', !!f[k]);
+});
 function renderScenarios(){
   const el = $('#scenCard'), A = state.A; if(!el || !A) return;
   state.scen = buildScenarios(A, state.coin);
@@ -2307,13 +2355,14 @@ function renderScenarios(){
   const tag = x => x.kind === 'ran' ? `<span class="pill no">${tr('RAN', 'UTIEKLO')}</span>` : `<span class="pill ${x.call.vclass}">${x.call.vclass === 'valid' ? tr('TRADE', 'OBCHODUJ') : x.call.vclass === 'watch' ? tr('WAIT', 'ČAKAJ') : tr('NO', 'NIE')}</span>`;
   const cond = scenCond;
   const lq = state.liq && state.liq.coin === state.coin ? state.liq : null, mag = lq ? [lq.topS, lq.topL].filter(Boolean) : [];
-  el.innerHTML = `<h3><span>🧭 ${tr('Scenarios', 'Scenáre')} · ${esc(state.coin)} ${TFLABEL[A.tf]}</span></h3>
-    ${macroWarn()}${szBar()}<div class="hint" style="margin:-4px 0 10px">${tr('Both directions at once, the best one first (setup strength and reward-to-risk). If nothing fits now, these are the plans waiting for price. Tap one to see it on the chart.', 'Oba smery naraz, najlepší hore (sila setupu a pomer zisk/riziko). Keď teraz nič nesedí, toto sú plány, ktoré čakajú na cenu. Ťukni a ukáže sa na grafe.')}</div>
+  el.className = 'card ' + foldCls('scen');
+  el.innerHTML = `<h3 data-fold="scen"><span>🧭 ${tr('Scenarios', 'Scenáre')} · ${esc(state.coin)} ${TFLABEL[A.tf]}</span><span class="chev">▾</span></h3>
+    ${levelsRow(A)}${macroWarn()}<div class="fbody">${szBar()}<div class="hint" style="margin:-4px 0 10px">${tr('Both directions at once, the best one first (setup strength and reward-to-risk). If nothing fits now, these are the plans waiting for price. Tap one to see it on the chart.', 'Oba smery naraz, najlepší hore (sila setupu a pomer zisk/riziko). Keď teraz nič nesedí, toto sú plány, ktoré čakajú na cenu. Ťukni a ukáže sa na grafe.')}</div>
     ${state.scen.map((x, i) => { const c = x.call, p = c.plan; return `<div class="scn ${x.kind === 'ran' ? 'ran' : ''}" data-scen="${i}" style="cursor:pointer">
       <div class="scn-h"><span class="badge ${c.dir}">${c.dir === 'long' ? 'LONG' : 'SHORT'}</span>${tag(x)}${x.kind === 'fresh' ? `<span class="pill watch">${tr('new plan', 'nový plán')}</span>` : ''}<span class="k">${c.score.toFixed(1)} / ${c.thr}</span></div>
       <div class="scn-if">${cond(x)}</div>
       ${x.kind === 'ran' ? '' : `<div class="sc-lv">${lv('Entry', fmt(p.e1))}${lv('Stop', fmt(p.sl), 'stp')}${lv('TP1 / TP2', fmt(p.tp1) + ' / ' + fmt(p.tp2), 'tgt')}${lv('R:R', p.rr1.toFixed(1) + ' / ' + p.rr2.toFixed(1))}</div>${sizeLine(p, c.coin)}<button class="btn sm" data-scalert="${i}">🔔 ${tr('Alert me at', 'Upozorni ma na')} ${fmt(p.e1)}</button>`}</div>`; }).join('')}
-    ${mag.length ? `<div class="hint">🧲 ${tr('Liquidity magnets', 'Magnety likvidity')}: ${mag.map(m => `${m.side === 's' ? tr('shorts liq.', 'likv. shortov') : tr('longs liq.', 'likv. longov')} ${fmt(m.px)}`).join(' · ')}</div>` : ''}`;
+    </div>${mag.length ? `<div class="hint">🧲 ${tr('Liquidity magnets', 'Magnety likvidity')}: ${mag.map(m => `${m.side === 's' ? tr('shorts liq.', 'likv. shortov') : tr('longs liq.', 'likv. longov')} ${fmt(m.px)}`).join(' · ')}</div>` : ''}`;
 }
 document.addEventListener('click', e => {
   const a = e.target.closest('[data-scalert]');
@@ -2399,9 +2448,10 @@ function renderLiqCard(){
     buck.push({k, px:(a + b) / 2, v, wall:bk}); }
   const mx = Math.max(1, ...buck.map(x => x.v));
   const lad = buck.map(x => (x.k === -1 ? `<div class="now">${tr('price', 'cena')} ${fmt(P)}</div>` : '') + `<span class="px">${fmt(x.px)}</span><div><div class="bar ${x.k > 0 ? 's' : 'l'}" style="width:${Math.max(1, x.v / mx * 100).toFixed(0)}%"></div></div><span class="wall">${x.wall ? '🧱 ' + fmtUsd(x.wall.usd) : ''}</span>`).join('');
-  el.innerHTML = `<h3><span>🧲 ${tr('Liquidity & squeeze radar', 'Likvidity a squeeze radar')} · ${esc(q.coin)}</span><button class="btn sm" id="liqRefresh" title="Refresh">↻</button></h3>
+  el.className = 'card ' + foldCls('liq');
+  el.innerHTML = `<h3 data-fold="liq"><span>🧲 ${tr('Liquidity & squeeze radar', 'Likvidity a squeeze radar')} · ${esc(q.coin)}</span><span><button class="btn sm" id="liqRefresh" title="Refresh">↻</button> <span class="chev">▾</span></span></h3>
     <div class="lq-sum sc-st ${r.cls}" style="font-weight:500">${r.txt}</div>
-    <div class="lq-kv">
+    <div class="fbody"><div class="lq-kv">
       <div><small>${tr('Funding now (per year)', 'Funding teraz (ročne)')}</small><b class="${q.fundNow > 0 ? 'down' : 'up'}">${apr(q.fundNow)}</b></div>
       <div><small>${tr('Funding 7-day avg', 'Funding priemer 7 dní')}</small><b>${apr(q.fund7)}</b></div>
       <div><small>Open interest</small><b>${fmtUsd(q.oi)}${q.oiChg ? ` <span class="${q.oiChg.pct >= 0 ? 'up' : 'down'}">${q.oiChg.pct >= 0 ? '+' : ''}${q.oiChg.pct.toFixed(1)} % / ${q.oiChg.hours}h</span>` : ''}</b></div>
@@ -2409,7 +2459,7 @@ function renderLiqCard(){
     </div>
     <div class="sub" style="margin-top:0">${tr('Where liquidations sit (estimate)', 'Kde ležia likvidácie (odhad)')}</div>
     <div class="lq-lad">${lad}</div>
-    <div class="hint" style="margin-top:8px">${tr('Teal above = shorts that would be liquidated, red below = longs. When price reaches a cluster, the move often speeds up (forced closes). In our backtest, the side with more liquidity did NOT reliably predict where price goes next, so use it for targets and stops, not for direction. 🧱 = biggest real order-book wall. The clusters are an estimate from volume and typical leverage over the last ~12 days, because nobody publishes other traders positions.', 'Tyrkysové hore = shorty, ktoré by sa likvidovali, červené dole = longy. Keď cena príde k zhluku, pohyb sa často zrýchli (nútené zatváranie). V našom backteste strana s viac likviditami NEurčovala spoľahlivo, kam cena pôjde, takže to používaj na ciele a stopy, nie na smer. 🧱 = najväčšia skutočná stena v knihe príkazov. Zhluky sú odhad z objemu a typických pák za posledných ~12 dní, lebo pozície ostatných nikto nezverejňuje.')}${q.oiChg ? '' : ' ' + tr('Open-interest change appears after the app has been open a few hours.', 'Zmena open interestu sa ukáže, keď appka pobeží aspoň pár hodín.')}</div>`;
+    <div class="hint" style="margin-top:8px">${tr('Teal above = shorts that would be liquidated, red below = longs. When price reaches a cluster, the move often speeds up (forced closes). In our backtest, the side with more liquidity did NOT reliably predict where price goes next, so use it for targets and stops, not for direction. 🧱 = biggest real order-book wall. The clusters are an estimate from volume and typical leverage over the last ~12 days, because nobody publishes other traders positions.', 'Tyrkysové hore = shorty, ktoré by sa likvidovali, červené dole = longy. Keď cena príde k zhluku, pohyb sa často zrýchli (nútené zatváranie). V našom backteste strana s viac likviditami NEurčovala spoľahlivo, kam cena pôjde, takže to používaj na ciele a stopy, nie na smer. 🧱 = najväčšia skutočná stena v knihe príkazov. Zhluky sú odhad z objemu a typických pák za posledných ~12 dní, lebo pozície ostatných nikto nezverejňuje.')}${q.oiChg ? '' : ' ' + tr('Open-interest change appears after the app has been open a few hours.', 'Zmena open interestu sa ukáže, keď appka pobeží aspoň pár hodín.')}</div></div>`;
   $('#liqRefresh').onclick = () => renderLiq(true);
   // strongest cluster on each side as a faint line on the chart
   (state.liqLines || []).forEach(l => { try{ cSeries.removePriceLine(l); }catch(e){} }); state.liqLines = [];
@@ -2423,6 +2473,53 @@ async function renderLiq(force){
   catch(e){ console.warn('liq', e); } finally{ state.liqBusy = false; }
 }
 setInterval(() => { if(!document.hidden && state.A) renderLiq(); }, 120000);
+
+/* ============================================================
+   Top traders: what the 50 best Hyperliquid traders of the month hold right now (server summary, /api/whales)
+   ============================================================ */
+const WHALES_URL = /vercel\.app$/.test(location.hostname) ? '/api/whales' : 'https://jarvis-ecru-mu-12.vercel.app/api/whales';
+let whales = null, whalesBusy = false;
+async function loadWhales(force){
+  if(whalesBusy || (!force && whales && Date.now() - whales.t < 5 * 60000)) return whales;
+  whalesBusy = true;
+  try{ const r = await fetch(WHALES_URL); if(!r.ok) throw new Error('whales ' + r.status); whales = {...await r.json(), t:Date.now()}; }
+  catch(e){ console.warn(e); if(!whales) whales = {error:true, t:Date.now()}; }
+  finally{ whalesBusy = false; }
+  return whales;
+}
+function whaleRead(coin){ // majority side by money, only when it is clear
+  const c = whales?.coins?.[coin]; if(!c) return null;
+  const L = c.long.usd, Sh = c.short.usd, tot = L + Sh; if(!tot) return null;
+  const side = L / tot >= 0.7 && c.long.n >= 3 ? 'long' : Sh / tot >= 0.7 && c.short.n >= 3 ? 'short' : null;
+  return {c, side, L, Sh, tot};
+}
+function whaleLine(coin){
+  const w = whaleRead(coin); if(!w) return '';
+  return `🐋 ${tr('Top traders', 'Top traderi')}: <b class="down">${w.c.short.n} short</b> ${fmtUsd(w.Sh)} · <b class="up">${w.c.long.n} long</b> ${fmtUsd(w.L)}`;
+}
+function renderWhales(){
+  const el = $('#whaleCard'); if(!el) return;
+  const coin = state.coin, head = `<h3 data-fold="whale"><span>🐋 ${tr('Top traders', 'Top traderi')} · ${esc(coin)}</span><span class="chev">▾</span></h3>`;
+  el.className = 'card ' + foldCls('whale');
+  if(!whales){ el.innerHTML = head + `<div class="hint"><span class="spin"></span> ${tr('Reading the leaderboard…', 'Čítam rebríček…')}</div>`; return; }
+  if(whales.error){ el.innerHTML = head + `<div class="hint">${tr('Top-trader data is not available right now.', 'Dáta top traderov teraz nie sú dostupné.')}</div>`; return; }
+  const w = whaleRead(coin);
+  if(!w){ el.innerHTML = head + `<div class="hint">${tr(`None of the top ${whales.traders} traders holds ${coin} right now.`, `Nikto z top ${whales.traders} traderov teraz nedrží ${coin}.`)}</div>`; return; }
+  const c = w.c, pL = w.L / w.tot * 100, call = state.call && state.call.coin === coin && state.call.vclass !== 'no' ? state.call : null;
+  const verdict = w.side ? tr(`<b>Smart money is clearly ${w.side.toUpperCase()}</b> (${Math.round(w.side === 'long' ? pL : 100 - pL)} % of the money).`, `<b>Smart money je jasne v ${w.side === 'long' ? 'LONGu' : 'SHORTe'}</b> (${Math.round(w.side === 'long' ? pL : 100 - pL)} % peňazí).`)
+    : tr('<b>Split.</b> The top traders do not agree on this coin.', '<b>Rozdelené.</b> Top traderi sa na tomto coine nezhodujú.');
+  const agree = call && w.side ? (call.dir === w.side ? ` ✅ ${tr('Same direction as the J.A.R.V.I.S. call.', 'Rovnaký smer ako call J.A.R.V.I.S.-a.')}` : ` ⚠️ ${tr('Against the J.A.R.V.I.S. call.', 'Proti callu J.A.R.V.I.S.-a.')}`) : '';
+  const side = (s, cls) => `<div><small>${s === 'long' ? 'LONG' : 'SHORT'} · ${c[s].n} ${tr('traders', 'traderov')}</small><b class="${cls}">${fmtUsd(c[s].usd)}</b><span>${tr('avg entry', 'priem. vstup')} ${fmt(c[s].entry)} · PnL ${fmtUsd(c[s].upnl, true)}</span></div>`;
+  el.innerHTML = head + `<div class="lq-sum sc-st ${w.side === 'long' ? 'go' : w.side === 'short' ? 'gone' : 'wait'}" style="font-weight:500">${verdict}${agree}</div>
+    <div class="fbody">
+    <div class="wh-bar"><span style="width:${pL.toFixed(0)}%"></span></div>
+    <div class="lq-kv wh">${side('long', 'up')}${side('short', 'down')}</div>
+    <div class="sub" style="margin-top:0">${tr('Biggest positions', 'Najväčšie pozície')}</div>
+    ${c.top.slice(0, 5).map(p => `<div class="wh-row"><span>#${p.rank} <span class="badge ${p.side}">${p.side === 'long' ? 'L' : 'S'}</span> ${fmtUsd(p.usd)}</span><span class="muted">@ ${fmt(p.entry)}${p.lev ? ' · ' + p.lev + 'x' : ''}</span><span class="${p.upnl >= 0 ? 'up' : 'down'}">${fmtUsd(p.upnl, true)}</span></div>`).join('')}
+    <div class="hint" style="margin-top:8px">${tr(`The ${whales.traders} traders with the biggest profit this month (at least $1M all-time profit, no market makers), read live from Hyperliquid. This cannot be backtested (the exchange keeps no history of positions), so use it as context, not as a signal. Big profitable positions can also flip: when they take profit, price often bounces the other way.`, `${whales.traders} traderov s najväčším ziskom za mesiac (aspoň 1 M $ zisku celkovo, bez market makerov), načítané naživo z Hyperliquidu. Nedá sa to spätne otestovať (burza neukladá históriu pozícií), takže to ber ako kontext, nie signál. Veľké ziskové pozície sa vedia aj otočiť: keď vyberajú zisk, cena sa často odrazí opačne.`)} ${tr('Updated', 'Aktualizované')} ${new Date(whales.updated).toLocaleTimeString(LANG === 'sk' ? 'sk-SK' : 'en-GB', {hour:'2-digit', minute:'2-digit'})}.</div></div>`;
+}
+async function refreshWhales(force){ renderWhales(); await loadWhales(force); renderWhales(); if(document.body.dataset.view === 'home') renderHome(); }
+setInterval(() => { if(!document.hidden) refreshWhales(); }, 5 * 60000);
 
 /* live websocket: candles for the open chart + all mids for price alerts */
 function connectWS(){
@@ -4070,7 +4167,7 @@ async function loadWatch(coin){
   A.btc = BH ? htfBias(BH) : null;
   A.mtf = Object.fromEntries([['15m', M15], ['1h', M1], ['4h', C], ['1d', H]].filter(([, x]) => x && x.length >= 60).map(([k, x]) => [k, htfBias(x)]));
   const scen = buildScenarios(A, coin), liq = await loadLiq(coin).catch(() => null);
-  watchData[coin] = {t:Date.now(), P:A.P, scen, liq};
+  watchData[coin] = {t:Date.now(), P:A.P, scen, liq, A};
 }
 async function refreshWatch(force){
   if(!state.ctxs.length) await refreshCtx();
@@ -4097,10 +4194,11 @@ function watchHtml(){
     const extra = [
       alt ? `↔️ ${tr('Alternative', 'Alternatíva')}: <b>${alt.call.dir === 'long' ? 'LONG' : 'SHORT'}</b> ${alt.call.vclass === 'valid' ? tr('TRADE', 'OBCHODUJ') : alt.call.vclass === 'watch' ? tr('WAIT', 'ČAKAJ') : tr('NO', 'NIE')} ${fmt(alt.call.plan.e1)} → ${fmt(alt.call.plan.tp2)} (RR ${alt.call.plan.rr2.toFixed(1)})` : '',
       ran ? `⏱ ${tr(`The ${ran.call.dir} from ${fmt(ran.call.plan.e1)} already ran, don't chase it.`, `${ran.call.dir === 'long' ? 'Long' : 'Short'} z ${fmt(ran.call.plan.e1)} už utiekol, nenaháňaj ho.`)}` : '',
+      whaleLine(coin),
       w.liq ? `🧲 ${squeezeRead(w.liq).txt.match(/<b>(.*?)<\/b>/)?.[1] || ''} ${tr('Magnets', 'Magnety')}: ↑ ${fmt(w.liq.topS?.px)} · ↓ ${fmt(w.liq.topL?.px)}` : '',
     ].filter(Boolean).map(t => `<div class="wx">${t}</div>`).join('');
     return `<div class="sc"><div class="sc-top"><span class="coin">${esc(coin)}</span><span class="tfl">4h · ${fmt(P)}${ch != null ? ` · <span class="${ch >= 0 ? 'up' : 'down'}">${ch >= 0 ? '+' : ''}${ch.toFixed(1)} %</span>` : ''}</span></div>
-      ${body}${extra}
+      ${body}${w.A ? levelsRow(w.A) : ''}${extra}
       <div class="sc-btn" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:10px"><button class="btn" data-wchart="${esc(coin)}">📈 ${tr('Chart & scenarios', 'Graf a scenáre')}</button>${best ? `<button class="btn" data-walert="${esc(coin)}">🔔 ${tr('Alert at', 'Upozorni na')} ${fmt(best.call.plan.e1)}</button>` : '<span></span>'}</div></div>`;
   };
   return `<div class="sv-sec"><span>⭐ ${tr('My coins', 'Moje coiny')}</span><button class="btn sm" id="wEdit">${tr('Edit', 'Upraviť')}</button></div>
@@ -4202,7 +4300,7 @@ document.addEventListener('click', e => {
 function setView(v){
   document.body.dataset.view = v; S().sview = v; persist();
   $$('#snav button').forEach(b => b.classList.toggle('on', b.dataset.sv === v));
-  if(v === 'home'){ renderHome(); loadBtcDay(); refreshWatch(); if(!scanCache['4h'] || Date.now() - scanCache['4h'].t > 10 * 60000) refreshTop(); }
+  if(v === 'home'){ renderHome(); loadBtcDay(); refreshWatch(); refreshWhales(); if(!scanCache['4h'] || Date.now() - scanCache['4h'].t > 10 * 60000) refreshTop(); }
   if(v === 'mine') renderMine();
   if(v === 'ask'){ renderAsk(); $('#askOut').innerHTML = ''; if(state.tf !== '4h'){ state.tf = '4h'; S().tf = '4h'; syncCoinUI(); load(); } } // answers on 4h, the tested timeframe
   document.querySelector('header').scrollIntoView({block:'start'});
@@ -4215,6 +4313,7 @@ function setMode(simple){
 }
 function renderSimple(){
   if(!$('#btnMode')) return;
+  syncLayBtn(); [e21S, e50S, e200S].forEach(s => s.applyOptions({visible: !!S().showEMA && !chartClean()})); if(state.A) setMarkers(state.A);
   const simple = document.body.classList.contains('simple');
   $('#btnMode').textContent = simple ? 'Pro' : tr('Simple', 'Jednoduché');
   $('#btnMode').title = simple ? tr('Show everything (indicators, scanner, backtest…)', 'Ukázať všetko (indikátory, scanner, backtest…)') : tr('Back to the simple view', 'Späť na jednoduché zobrazenie');
@@ -4250,6 +4349,9 @@ function openTab(name){
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if(b) openTab(b.dataset.tab); });
 $('#langSw').addEventListener('click', e => { const b = e.target.closest('button[data-lang]'); if(!b) return; S().lang = b.dataset.lang; persist(); applyProfile(true); });
 $('#fitBtn').onclick = fitChart;
+function syncLayBtn(){ const b = $('#layBtn'); if(!b) return; b.hidden = !document.body.classList.contains('simple'); b.textContent = chartClean() ? '◐ ' + tr('Clean', 'Čisté') : '◑ ' + tr('All layers', 'Všetko'); b.title = tr('Show or hide zones, patterns, EMAs and volume profile', 'Ukázať alebo skryť zóny, formácie, EMA a profil objemu'); }
+$('#layBtn').onclick = () => { S().chartAll = !S().chartAll; persist(); syncLayBtn(); [e21S, e50S, e200S].forEach(s => s.applyOptions({visible: !!S().showEMA && !chartClean()})); if(state.A) setMarkers(state.A); refreshPlanVisuals(); };
+setTimeout(syncLayBtn, 0);
 $('#toTabs').onclick = () => $('.bottom').scrollIntoView({behavior:'smooth', block:'start'});
 $('#btnAnalyze').onclick = () => { state.forceDir = null; state.ideaCall = null; load(); };
 $('#btnIdea').onclick = checkIdea;
