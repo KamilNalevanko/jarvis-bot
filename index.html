@@ -2607,9 +2607,9 @@ function checkIdea(){
 /* ============================================================
    Scanner (4 parallel workers)
    ============================================================ */
-async function scanCalls(tf, n, onRow, onProgress){
+async function scanCalls(tf, n, onRow, onProgress, cat = ''){
   if(!state.ctxs.length) await refreshCtx();
-  const top = state.ctxs.filter(c => !c.cat).sort((a,b) => b.vol - a.vol).slice(0, n), rows = [];
+  const top = state.ctxs.filter(c => (c.cat || '') === cat).sort((a,b) => b.vol - a.vol).slice(0, n), rows = [];
   let btcB = null;
   try{ btcB = htfBias(resample(await fetchCandles('BTC', tf, 500), TFMS[HTF[tf]])); }catch(e){}
   let done = 0, next = 0;
@@ -2649,6 +2649,13 @@ function renderTop(){
     : tr('No setups above the WAIT level right now. Patience is a position too.', 'Momentálne žiadne setupy nad úrovňou ČAKAJ. Trpezlivosť je tiež pozícia.');
 }
 let topBusy = false;
+async function refreshXyz(force){ // stocks & commodities for the Today screen, every 15 minutes
+  const c = scanCache['4h_xyz']; if(state.xyzBusy || (!force && c && Date.now() - c.t < 15 * 60000)) return;
+  state.xyzBusy = true;
+  try{ const rows = await scanCalls('4h', 25, null, null, 'xyz'); scanCache['4h_xyz'] = {t:Date.now(), rows}; }
+  catch(e){ console.warn('xyz scan', e); } finally{ state.xyzBusy = false; }
+  if(document.body.dataset.view === 'home') renderHome();
+}
 async function refreshTop(force){
   if(topBusy) return; topBusy = true; renderTop();
   try{
@@ -4134,7 +4141,8 @@ function renderHome(){
   const order = {go:0, wait:1}; // tested trades first (in the zone, then nearest); far pullback plans separately (the bot skips them)
   const valid = rows.filter(r => r.vclass === 'valid').map(c => ({c, st:callStatus(c)}));
   const near = valid.filter(x => !x.st.far).sort((a, b) => order[a.st.cls] - order[b.st.cls] || a.c.plan.dist - b.c.plan.dist), far = valid.filter(x => x.st.far).sort((a, b) => a.c.plan.dist - b.c.plan.dist);
-  homeCalls = near.map(x => x.c);
+  const xs = scanCache['4h_xyz'], xValid = (xs?.rows || []).filter(r => r.vclass === 'valid' && !callStatus(r).far).sort((a, b) => a.plan.dist - b.plan.dist);
+  homeCalls = [...near.map(x => x.c), ...xValid];
   const watch = rows.filter(r => r.vclass === 'watch').sort((a, b) => (b.score - b.thr) - (a.score - a.thr)).slice(0, 3);
   const hr = new Date().getHours(), hi = hr < 10 ? tr('Good morning', 'Dobré ráno') : hr < 18 ? tr('Hello', 'Ahoj') : tr('Good evening', 'Dobrý večer');
   const b = btcDay, mk = !b ? `<span class="spin"></span> ${tr('Reading the market…', 'Čítam trh…')}`
@@ -4143,7 +4151,7 @@ function renderHome(){
     : tr(`<b>Bitcoin is moving sideways</b> on the daily chart. Fewer clean trades, more patience.`, `<b>Bitcoin ide na dennom grafe do strany.</b> Menej čistých obchodov, viac trpezlivosti.`);
   const icon = !b ? '🧭' : b.score >= 2 ? '📈' : b.score <= -2 ? '📉' : '↔️';
   const card = (c, i) => { const p = c.plan, st = callStatus(c); return `<div class="sc">
-      <div class="sc-top"><span class="coin">${esc(c.coin)}</span><span class="badge ${c.dir}">${c.dir === 'long' ? 'LONG' : 'SHORT'}</span><span class="tfl">4h · ${c.score.toFixed(1)} ${tr('pts', 'b.')} · RR ${p.rr2.toFixed(1)}</span></div>
+      <div class="sc-top"><span class="coin">${esc(cname(c.coin))}</span><span class="badge ${c.dir}">${c.dir === 'long' ? 'LONG' : 'SHORT'}</span><span class="tfl">4h · ${c.score.toFixed(1)} ${tr('pts', 'b.')} · RR ${p.rr2.toFixed(1)}</span></div>
       <div class="sc-st ${st.cls}">${st.txt}</div>
       <div class="sc-lv"><div><small>${tr('Entry', 'Vstup')}</small><span>${fmt(p.e1)}</span></div><div class="stp"><small>Stop</small><span>${fmt(p.sl)}</span></div><div class="tgt"><small>${tr('Target 1', 'Cieľ 1')}</small><span>${fmt(p.tp1)}</span></div><div class="tgt"><small>${tr('Target 2', 'Cieľ 2')}</small><span>${fmt(p.tp2)}</span></div></div>
       <div class="sc-why">${tr('Why', 'Prečo')}: ${shortWhy(c) || '–'}</div>
@@ -4159,6 +4167,11 @@ function renderHome(){
     ${!sc ? `<div class="empty2"><span class="spin"></span> ${tr('Scanning 30 coins… this takes about a minute.', 'Skenujem 30 coinov… trvá to asi minútu.')}</div>`
       : near.length ? near.map((x, i) => card(x.c, i)).join('')
       : `<div class="empty2">😌 ${tr('No trade worth taking right now. That is normal: good setups come a few times a week. J.A.R.V.I.S. keeps watching.', 'Teraz tu nie je obchod, ktorý by stál za to. To je normálne: dobré setupy prídu pár razy do týždňa. J.A.R.V.I.S. sleduje ďalej.')}</div>`}
+    <div class="sv-sec"><span>📈 ${tr('Stocks & commodities', 'Akcie a komodity')} (${xValid.length})</span></div>
+    <p class="sv-sub" style="margin-top:-4px">${tr('Gold, silver, oil, indices and stocks from trade.xyz on Hyperliquid. Less tested than crypto (results swung a lot between periods), so use a smaller size.', 'Zlato, striebro, ropa, indexy a akcie z trade.xyz na Hyperliquide. Menej otestované ako krypto (výsledky sa medzi obdobiami veľmi menili), tak daj menšiu pozíciu.')}</p>
+    ${!xs ? `<div class="empty2"><span class="spin"></span> ${tr('Scanning stocks and commodities…', 'Skenujem akcie a komodity…')}</div>`
+      : xValid.length ? xValid.map((c, i) => card(c, near.length + i)).join('')
+      : `<div class="empty2">${tr('No stock or commodity setup right now.', 'Teraz žiadny setup na akciách ani komoditách.')}</div>`}
     ${watch.length ? `<div class="sv-sec"><span>👀 ${tr('Almost there', 'Skoro hotové')}</span></div>
       ${watch.map(c => `<div class="wrow" data-wcoin="${esc(c.coin)}"><span class="w1">${esc(c.coin)} <span class="badge ${c.dir}">${c.dir === 'long' ? 'L' : 'S'}</span></span><span class="w2">${tr('missing', 'chýba')}: ${esc(c.conditions[0] || tr('more confluence', 'viac dôvodov'))}</span></div>`).join('')}` : ''}
     <details class="help"><summary>❔ ${tr('How to read a trade', 'Ako čítať obchod')}</summary>
@@ -4314,7 +4327,7 @@ document.addEventListener('click', e => {
 function setView(v){
   document.body.dataset.view = v; S().sview = v; persist();
   $$('#snav button').forEach(b => b.classList.toggle('on', b.dataset.sv === v));
-  if(v === 'home'){ renderHome(); loadBtcDay(); refreshWatch(); refreshWhales(); if(!scanCache['4h'] || Date.now() - scanCache['4h'].t > 10 * 60000) refreshTop(); }
+  if(v === 'home'){ renderHome(); loadBtcDay(); refreshWatch(); refreshWhales(); setTimeout(refreshXyz, 20000); if(!scanCache['4h'] || Date.now() - scanCache['4h'].t > 10 * 60000) refreshTop(); }
   if(v === 'mine') renderMine();
   if(v === 'ask'){ renderAsk(); $('#askOut').innerHTML = ''; if(state.tf !== '4h'){ state.tf = '4h'; S().tf = '4h'; syncCoinUI(); load(); } } // answers on 4h, the tested timeframe
   document.querySelector('header').scrollIntoView({block:'start'});
