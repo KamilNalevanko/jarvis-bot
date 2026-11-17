@@ -403,7 +403,7 @@ header,.side,.bottom,.modal .box,.toast,.legend,.scrollhint{zoom:var(--ui,1)}
       <div class="top">
         <input id="coinSearch" data-i18n-ph="search" spellcheck="false" autocomplete="off">
         <div class="chips" id="cfilters">
-          <button data-f="all" class="on" data-i18n="fAll"></button><button data-f="fav" data-i18n="fFav"></button><button data-f="gain" data-i18n="fGain"></button><button data-f="lose" data-i18n="fLose"></button><button data-f="meme">🐸 Memes</button>
+          <button data-f="all" class="on" data-i18n="fAll"></button><button data-f="fav" data-i18n="fFav"></button><button data-f="gain" data-i18n="fGain"></button><button data-f="lose" data-i18n="fLose"></button><button data-f="meme">🐸 Memes</button><button data-f="xyz" id="fXyz">📈</button>
         </div>
       </div>
       <div class="clist" id="clist"></div>
@@ -950,7 +950,7 @@ async function fetchCandles(coin, interval, n, startTime, opts = {}){
   const ttl = interval === '5m' || interval === '15m' ? 20000 : 45000;
   const hit = candleCache.get(key);
   if(startTime == null && hit && end - hit.at < ttl && hit.data.length && hit.data[0].t <= start + ms) return hit.data.filter(c => c.t >= start - ms);
-  const order = opts.bulk ? ['binance', 'hl', 'bybit'] : ['hl', 'binance', 'bybit'];
+  const order = isXyz(coin) ? ['hl'] : opts.bulk ? ['binance', 'hl', 'bybit'] : ['hl', 'binance', 'bybit']; // stocks / commodities exist only on Hyperliquid
   const fns = {hl:hlCandles, binance:binanceCandles, bybit:bybitCandles};
   let lastErr;
   for(const src of order){
@@ -972,10 +972,14 @@ function renderSrc(){
   el.className = 'srcb ' + (s === 'hl' ? 'ok' : 'warn');
 }
 async function fetchCtx(){
-  const [meta, ctxs] = await info({type:'metaAndAssetCtxs'});
+  const [[meta, ctxs], xyz] = await Promise.all([info({type:'metaAndAssetCtxs'}), info({type:'metaAndAssetCtxs', dex:'xyz'}).catch(() => null)]);
+  return [...fetchCtxRows(meta, ctxs), ...(xyz ? fetchCtxRows(xyz[0], xyz[1], 'xyz') : [])];
+}
+function fetchCtxRows(meta, ctxs, cat){
   return meta.universe.map((u, i) => ({name:u.name, delisted:!!u.isDelisted, maxLev:u.maxLeverage, ...ctxs[i]}))
     .filter(x => !x.delisted)
-    .map(x => ({name:x.name, mark:+x.markPx, prev:+x.prevDayPx, funding:+x.funding, oi:+x.openInterest * +x.markPx, vol:+x.dayNtlVlm, maxLev:+x.maxLev || 20, premium:+x.premium || 0}));
+    .map(x => ({name:x.name, mark:+x.markPx, prev:+x.prevDayPx, funding:+x.funding, oi:+x.openInterest * +x.markPx, vol:+x.dayNtlVlm, maxLev:+x.maxLev || 20, premium:+x.premium || 0, cat:cat || ''}))
+    .filter(x => !cat || x.vol > 1e6); // trade.xyz: only markets with real volume
 }
 function resample(C, ms){
   const out = [];
@@ -1666,6 +1670,9 @@ function composeCall(A, dir, sc, plan, coin){
    ============================================================ */
 const state = {coin:S().coin, tf:S().tf, C:[], H:[], A:null, call:null, ctxs:[], ws:null, forceDir:null, ideaCall:null, priceLines:[], loading:false, btcBias:null, mtf:null, mids:{}};
 const ctxOf = coin => state.ctxs.find(c => c.name === coin);
+const isXyz = coin => /^xyz:/.test(coin || ''); // stock / commodity perp on trade.xyz
+const cname = coin => String(coin || '').replace(/^xyz:/, ''); // display name: GOLD, NVDA, SP500…
+const findCoin = q => { q = String(q || '').trim().toUpperCase(); return state.ctxs.find(c => c.name.toUpperCase() === q) || state.ctxs.find(c => cname(c.name).toUpperCase() === q); };
 const tzOff = new Date().getTimezoneOffset() * 60;
 const toTime = t => Math.floor(t/1000) - tzOff;
 const baseOpts = {
@@ -2117,6 +2124,8 @@ function renderCall(){
 /* measured on 7 months x 60 coins (TRADE IT calls, ADX >= 20): how often the entry is reached and how often TP1 comes before the stop */
 function reliabilityNote(call){
   if(call.vclass === 'no') return '';
+  if(isXyz(call.coin)) return `<div class="hint" style="margin:-2px 0 10px;border-left:3px solid var(--amber);padding-left:8px">📊 ${tr('<b>Stocks & commodities: not a tested signal.</b> On 17 trade.xyz markets the same rules were unstable (first half −0.06 R per trade, second half +0.5 R, carried by the memory-chip rally). Gold, silver, NVDA and the S&P 500 lost. Use this as chart analysis and levels, with a smaller size.', '<b>Akcie a komodity: nie je to otestovaný signál.</b> Na 17 trhoch trade.xyz boli rovnaké pravidlá nestabilné (prvá polovica −0,06 R na obchod, druhá +0,5 R, ťahala to rally pamäťových čipov). Zlato, striebro, NVDA a S&P 500 boli v strate. Ber to ako analýzu grafu a úrovní, s menšou pozíciou.')}</div>`;
+  if(call.tf === '15m') return `<div class="hint" style="margin:-2px 0 10px;border-left:3px solid var(--amber);padding-left:8px">📊 ${tr('<b>15m: no edge for scalps.</b> Tested on 10 coins over 52 days: about −0.15 R per trade with Hyperliquid fees (around 0 R without them), on 5m even worse. Fees take ~0.15 R from every scalp because the stops are tiny. Use 15m only to time a 4h plan.', '<b>15m: na scalpy žiadna výhoda.</b> Otestované na 10 coinoch za 52 dní: asi −0,15 R na obchod s poplatkami Hyperliquidu (bez nich okolo 0 R), na 5m ešte horšie. Poplatky zoberú z každého scalpu ~0,15 R, lebo stopy sú malé. 15m používaj len na načasovanie 4h plánu.')}</div>`;
   if(call.tf !== '4h') return `<div class="hint rel" style="margin:-2px 0 10px">📊 ${tr(
     `<b>Track record:</b> on ${TFLABEL[call.tf]} these setups showed <b>no reliable edge</b> in an honest test. Use ${TFLABEL[call.tf]} for timing and take the trade only when 4h agrees.`,
     `<b>Ako dopadali:</b> na ${TFLABEL[call.tf]} tieto setupy v poctivom teste <b>nemali spoľahlivú výhodu</b>. ${TFLABEL[call.tf]} ber ako načasovanie a obchod ber, len keď súhlasí 4h.`)}</div>`;
@@ -2356,7 +2365,7 @@ function renderScenarios(){
   const cond = scenCond;
   const lq = state.liq && state.liq.coin === state.coin ? state.liq : null, mag = lq ? [lq.topS, lq.topL].filter(Boolean) : [];
   el.className = 'card ' + foldCls('scen');
-  el.innerHTML = `<h3 data-fold="scen"><span>🧭 ${tr('Scenarios', 'Scenáre')} · ${esc(state.coin)} ${TFLABEL[A.tf]}</span><span class="chev">▾</span></h3>
+  el.innerHTML = `<h3 data-fold="scen"><span>🧭 ${tr('Scenarios', 'Scenáre')} · ${esc(cname(state.coin))} ${TFLABEL[A.tf]}</span><span class="chev">▾</span></h3>
     ${levelsRow(A)}${macroWarn()}<div class="fbody">${szBar()}<div class="hint" style="margin:-4px 0 10px">${tr('Both directions at once, the best one first (setup strength and reward-to-risk). If nothing fits now, these are the plans waiting for price. Tap one to see it on the chart.', 'Oba smery naraz, najlepší hore (sila setupu a pomer zisk/riziko). Keď teraz nič nesedí, toto sú plány, ktoré čakajú na cenu. Ťukni a ukáže sa na grafe.')}</div>
     ${state.scen.map((x, i) => { const c = x.call, p = c.plan; return `<div class="scn ${x.kind === 'ran' ? 'ran' : ''}" data-scen="${i}" style="cursor:pointer">
       <div class="scn-h"><span class="badge ${c.dir}">${c.dir === 'long' ? 'LONG' : 'SHORT'}</span>${tag(x)}${x.kind === 'fresh' ? `<span class="pill watch">${tr('new plan', 'nový plán')}</span>` : ''}<span class="k">${c.score.toFixed(1)} / ${c.thr}</span></div>
@@ -2449,7 +2458,7 @@ function renderLiqCard(){
   const mx = Math.max(1, ...buck.map(x => x.v));
   const lad = buck.map(x => (x.k === -1 ? `<div class="now">${tr('price', 'cena')} ${fmt(P)}</div>` : '') + `<span class="px">${fmt(x.px)}</span><div><div class="bar ${x.k > 0 ? 's' : 'l'}" style="width:${Math.max(1, x.v / mx * 100).toFixed(0)}%"></div></div><span class="wall">${x.wall ? '🧱 ' + fmtUsd(x.wall.usd) : ''}</span>`).join('');
   el.className = 'card ' + foldCls('liq');
-  el.innerHTML = `<h3 data-fold="liq"><span>🧲 ${tr('Liquidity & squeeze radar', 'Likvidity a squeeze radar')} · ${esc(q.coin)}</span><span><button class="btn sm" id="liqRefresh" title="Refresh">↻</button> <span class="chev">▾</span></span></h3>
+  el.innerHTML = `<h3 data-fold="liq"><span>🧲 ${tr('Liquidity & squeeze radar', 'Likvidity a squeeze radar')} · ${esc(cname(q.coin))}</span><span><button class="btn sm" id="liqRefresh" title="Refresh">↻</button> <span class="chev">▾</span></span></h3>
     <div class="lq-sum sc-st ${r.cls}" style="font-weight:500">${r.txt}</div>
     <div class="fbody"><div class="lq-kv">
       <div><small>${tr('Funding now (per year)', 'Funding teraz (ročne)')}</small><b class="${q.fundNow > 0 ? 'down' : 'up'}">${apr(q.fundNow)}</b></div>
@@ -2499,8 +2508,9 @@ function whaleLine(coin){
 }
 function renderWhales(){
   const el = $('#whaleCard'); if(!el) return;
-  const coin = state.coin, head = `<h3 data-fold="whale"><span>🐋 ${tr('Top traders', 'Top traderi')} · ${esc(coin)}</span><span class="chev">▾</span></h3>`;
+  const coin = state.coin, head = `<h3 data-fold="whale"><span>🐋 ${tr('Top traders', 'Top traderi')} · ${esc(cname(coin))}</span><span class="chev">▾</span></h3>`;
   el.className = 'card ' + foldCls('whale');
+  if(isXyz(coin)){ el.innerHTML = head + `<div class="hint">${tr('Top-trader positions are tracked for crypto only.', 'Pozície top traderov sledujem len pri krypte.')}</div>`; return; }
   if(!whales){ el.innerHTML = head + `<div class="hint"><span class="spin"></span> ${tr('Reading the leaderboard…', 'Čítam rebríček…')}</div>`; return; }
   if(whales.error){ el.innerHTML = head + `<div class="hint">${tr('Top-trader data is not available right now.', 'Dáta top traderov teraz nie sú dostupné.')}</div>`; return; }
   const w = whaleRead(coin);
@@ -2530,12 +2540,13 @@ function connectWS(){
   ws.onopen = () => {
     ws.send(JSON.stringify({method:'subscribe', subscription:{type:'candle', coin:state.coin, interval:state.tf}}));
     ws.send(JSON.stringify({method:'subscribe', subscription:{type:'allMids'}}));
+    ws.send(JSON.stringify({method:'subscribe', subscription:{type:'allMids', dex:'xyz'}}));
     ping = setInterval(() => { try{ ws.send(JSON.stringify({method:'ping'})); }catch(e){} }, 45000);
   };
   ws.onmessage = e => {
     let m; try{ m = JSON.parse(e.data); }catch(_){ return; }
     if(state.ws !== ws) return;
-    if(m.channel === 'allMids'){ state.mids = m.data.mids || {}; checkPriceAlertsAll(); paperTick(); return; }
+    if(m.channel === 'allMids'){ state.mids = {...state.mids, ...(m.data.mids || {})}; checkPriceAlertsAll(); paperTick(); return; } // crypto and trade.xyz arrive as separate messages
     if(m.channel !== 'candle') return;
     const k = m.data; if(k.s !== state.coin || k.i !== state.tf || state.C.coin !== state.coin) return;
     const c = {t:k.t, o:+k.o, h:+k.h, l:+k.l, c:+k.c, v:+k.v}, C = state.C, last = C.at(-1);
@@ -2598,7 +2609,7 @@ function checkIdea(){
    ============================================================ */
 async function scanCalls(tf, n, onRow, onProgress){
   if(!state.ctxs.length) await refreshCtx();
-  const top = state.ctxs.slice().sort((a,b) => b.vol - a.vol).slice(0, n), rows = [];
+  const top = state.ctxs.filter(c => !c.cat).sort((a,b) => b.vol - a.vol).slice(0, n), rows = [];
   let btcB = null;
   try{ btcB = htfBias(resample(await fetchCandles('BTC', tf, 500), TFMS[HTF[tf]])); }catch(e){}
   let done = 0, next = 0;
@@ -3300,6 +3311,7 @@ function renderLive(){
     <div class="hint" style="margin-top:10px">${tr('Orders from a call: two limit entries (E1, E2), each with its own stop loss and take profit on the exchange (TP1 for E1, TP2 for E2). They stay protected even when this page is closed. Leverage = what you have set for the coin on Hyperliquid.','Príkazy z callu: dve limitky (E1, E2), každá s vlastným stop lossom a take profitom priamo na burze (TP1 pre E1, TP2 pre E2). Chránené sú aj vtedy, keď je stránka zavretá. Páka = to, čo máš pre coin nastavené na Hyperliquide.')}</div>`;
 }
 async function buildLive(call, riskPct){ // bracket for one call: 2 limit entries, each with exchange-side TP and SL
+  if(isXyz(call.coin)) throw new Error(tr(`${cname(call.coin)} is a trade.xyz market: place it by hand on Hyperliquid (trade.xyz). J.A.R.V.I.S. sends live orders for crypto only. Demo works.`, `${cname(call.coin)} je trh trade.xyz: zadaj ho ručne na Hyperliquide (trade.xyz). J.A.R.V.I.S. posiela live príkazy len pre krypto. Demo funguje.`));
   const c = hlCfg(), meta = await hlMeta(), a = meta.find(m => m.name === call.coin);
   if(!a) throw new Error(tr(`${call.coin} is not listed on ${c.net}`, `${call.coin} nie je na ${c.net}`));
   const ev = await hlEquity(c.addr), eq = ev.total;
@@ -4045,6 +4057,7 @@ function renderCoinList(){
   const q = $('#coinSearch').value.trim().toUpperCase(), favs = S().favs;
   let list = state.ctxs.slice();
   if(q) list = list.filter(c => c.name.toUpperCase().includes(q));
+  if(coinFilter === 'xyz') list = list.filter(c => c.cat); else if(!q && coinFilter !== 'fav') list = list.filter(c => !c.cat); // stocks & commodities in their own tab
   const chg = c => c.prev ? pct(c.mark, c.prev) : 0;
   if(coinFilter === 'fav') list = list.filter(c => favs.includes(c.name));
   if(coinFilter === 'meme') list = list.filter(c => MEMES.includes(c.name.toUpperCase()));
@@ -4055,7 +4068,7 @@ function renderCoinList(){
   $('#clist').innerHTML = `<div class="crow head"><span></span><span>Coin</span><span class="r">${tr('Price','Cena')}</span><span class="r">24h</span><span class="r">${tr('Volume','Objem')}</span></div>` +
     (list.slice(0, 250).map((c, i) => { const ch = chg(c); return `<div class="crow${i === 0 && q ? ' sel' : ''}" data-coin="${esc(c.name)}">
       <span class="star${favs.includes(c.name) ? ' on' : ''}" data-star="${esc(c.name)}">★</span>
-      <span class="nm">${esc(c.name)}</span><span class="r">${fmt(c.mark)}</span>
+      <span class="nm">${esc(cname(c.name))}${c.cat ? ' <small class="muted">xyz</small>' : ''}</span><span class="r">${fmt(c.mark)}</span>
       <span class="r ${ch >= 0 ? 'up' : 'down'}">${ch >= 0 ? '+' : ''}${ch.toFixed(2)}%</span>
       <span class="r muted">${fmtUsd(c.vol)}</span></div>`; }).join('') || `<div class="empty">${tr('Nothing found','Nič sa nenašlo')}</div>`);
 }
@@ -4079,12 +4092,13 @@ $('#clist').addEventListener('click', e => {
   const r = e.target.closest('.crow[data-coin]'); if(r){ closeCoins(); setCoin(r.dataset.coin); }
 });
 function syncCoinUI(){
-  $('#coinBtn span').textContent = state.coin;
+  $('#coinBtn span').textContent = cname(state.coin);
+  if($('#fXyz')) $('#fXyz').textContent = '📈 ' + tr('Stocks & gold', 'Akcie a zlato');
   $$('#tfs button').forEach(x => x.classList.toggle('on', x.dataset.tf === state.tf));
 }
 function setCoin(c){
   c = (c || '').trim(); if(!c) return;
-  const known = state.ctxs.find(x => x.name.toUpperCase() === c.toUpperCase());
+  const known = findCoin(c);
   if(state.ctxs.length && !known){ toast(tr(`${c} not found`, `${c} sa nenašiel`)); return; }
   if(known) c = known.name;
   state.coin = c; S().coin = c; persist(); syncCoinUI();
@@ -4181,7 +4195,7 @@ function watchHtml(){
   const lv = (k, v, c = '') => `<div class="${c}"><small>${k}</small><span>${v}</span></div>`;
   const card = coin => {
     const w = watchData[coin], ctx = ctxOf(coin);
-    if(!w) return `<div class="sc"><div class="sc-top"><span class="coin">${esc(coin)}</span></div><div class="hint"><span class="spin"></span> ${tr('Analysing…', 'Analyzujem…')}</div></div>`;
+    if(!w) return `<div class="sc"><div class="sc-top"><span class="coin">${esc(cname(coin))}</span></div><div class="hint"><span class="spin"></span> ${tr('Analysing…', 'Analyzujem…')}</div></div>`;
     const P = midOf(coin) ?? w.P, ch = ctx?.prev ? (P / ctx.prev - 1) * 100 : null;
     const live = w.scen.filter(x => x.kind !== 'ran'), best = live[0], alt = live[1];
     const ran = w.scen.find(x => x.kind === 'ran' && x.call.score >= x.call.thr);
@@ -4197,12 +4211,12 @@ function watchHtml(){
       whaleLine(coin),
       w.liq ? `🧲 ${squeezeRead(w.liq).txt.match(/<b>(.*?)<\/b>/)?.[1] || ''} ${tr('Magnets', 'Magnety')}: ↑ ${fmt(w.liq.topS?.px)} · ↓ ${fmt(w.liq.topL?.px)}` : '',
     ].filter(Boolean).map(t => `<div class="wx">${t}</div>`).join('');
-    return `<div class="sc"><div class="sc-top"><span class="coin">${esc(coin)}</span><span class="tfl">4h · ${fmt(P)}${ch != null ? ` · <span class="${ch >= 0 ? 'up' : 'down'}">${ch >= 0 ? '+' : ''}${ch.toFixed(1)} %</span>` : ''}</span></div>
+    return `<div class="sc"><div class="sc-top"><span class="coin">${esc(cname(coin))}</span><span class="tfl">4h · ${fmt(P)}${ch != null ? ` · <span class="${ch >= 0 ? 'up' : 'down'}">${ch >= 0 ? '+' : ''}${ch.toFixed(1)} %</span>` : ''}</span></div>
       ${body}${w.A ? levelsRow(w.A) : ''}${extra}
       <div class="sc-btn" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:10px"><button class="btn" data-wchart="${esc(coin)}">📈 ${tr('Chart & scenarios', 'Graf a scenáre')}</button>${best ? `<button class="btn" data-walert="${esc(coin)}">🔔 ${tr('Alert at', 'Upozorni na')} ${fmt(best.call.plan.e1)}</button>` : '<span></span>'}</div></div>`;
   };
   return `<div class="sv-sec"><span>⭐ ${tr('My coins', 'Moje coiny')}</span><button class="btn sm" id="wEdit">${tr('Edit', 'Upraviť')}</button></div>
-    <div id="wEditBox" class="szbar" hidden><label style="flex:1">${tr('Coins, comma separated', 'Coiny oddelené čiarkou')}<input id="wList" class="mono" value="${esc(watchList().join(', '))}"></label><button class="btn sm fill" id="wSave">${tr('Save', 'Uložiť')}</button></div>
+    <div id="wEditBox" class="szbar" hidden><label style="flex:1">${tr('Coins, comma separated', 'Coiny oddelené čiarkou')}<input id="wList" class="mono" value="${esc(watchList().map(cname).join(', '))}"></label><button class="btn sm fill" id="wSave">${tr('Save', 'Uložiť')}</button></div>
     ${szBar()}
     ${watchList().map(card).join('')}`;
 }
@@ -4210,7 +4224,7 @@ document.addEventListener('click', e => {
   const t = e.target.closest('[data-wchart],[data-walert],#wEdit,#wSave'); if(!t) return;
   if(t.id === 'wEdit'){ $('#wEditBox').hidden = !$('#wEditBox').hidden; return; }
   if(t.id === 'wSave'){
-    const list = $('#wList').value.split(/[ ,;]+/).map(x => x.trim()).filter(Boolean).map(x => state.ctxs.find(c => c.name.toUpperCase() === x.toUpperCase())?.name).filter(Boolean);
+    const list = $('#wList').value.split(/[ ,;]+/).map(x => x.trim()).filter(Boolean).map(x => findCoin(x)?.name).filter(Boolean);
     S().watch = [...new Set(list)].slice(0, 6); persist(); renderHome(); refreshWatch(); return;
   }
   if(t.dataset.wchart){ state.tf = '4h'; S().tf = '4h'; setView('chart'); setCoin(t.dataset.wchart); return; }
