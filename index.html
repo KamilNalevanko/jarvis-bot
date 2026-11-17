@@ -4318,6 +4318,53 @@ document.addEventListener('click', e => {
   else if(t.dataset.hdemo != null){ if(openPaper(c, 'manual')){ toast(tr(`Demo trade on ${c.coin} opened. See it in Mine.`, `Demo obchod na ${c.coin} otvorený. Nájdeš ho v Moje.`)); } }
   else liveTradeCall(c);
 });
+/* ---- my own Hyperliquid trading stats (manual trades too), from the public fill history of the wallet ---- */
+const myStats = {t:0, d:null, err:'', busy:false, days:30};
+async function refreshMyStats(force){
+  const addr = guardAddr(); if(!addr || myStats.busy || (!force && myStats.d && Date.now() - myStats.t < 5 * 60000)) return;
+  myStats.busy = true;
+  try{
+    const fills = await mainInfo({type:'userFillsByTime', user:addr, startTime:Date.now() - myStats.days * 864e5, aggregateByTime:true});
+    fills.sort((a, b) => a.time - b.time);
+    // one closed trade = closing fills on the same coin less than 15 minutes apart
+    const trades = [], fees = fills.reduce((a, f) => a + +f.fee, 0);
+    for(const f of fills){ const pnl = +f.closedPnl; if(!/^Close|Liquidat/i.test(f.dir || '') && !pnl) continue;
+      const last = trades.findLast(t => t.coin === f.coin);
+      if(last && f.time - last.t < 15 * 60000) { last.pnl += pnl; last.fee += +f.fee; last.t = f.time; }
+      else trades.push({coin:f.coin, dir:/Short/i.test(f.dir) ? 'short' : 'long', pnl, fee:+f.fee, t:f.time, liq:/Liquidat/i.test(f.dir || '')}); }
+    trades.forEach(t => t.net = t.pnl - t.fee);
+    myStats.d = {trades, fees, n:fills.length}; myStats.err = ''; myStats.t = Date.now();
+  }catch(e){ myStats.err = e.message; }
+  finally{ myStats.busy = false; if(document.body.dataset.view === 'mine') renderMine(); }
+}
+function myStatsHtml(){
+  const head = `<div class="sv-sec"><span>📊 ${tr('My Hyperliquid stats', 'Moja štatistika z Hyperliquidu')} · ${myStats.days} ${tr('days', 'dní')}</span><span>${[7, 30, 90].map(d => `<button class="btn sm${d === myStats.days ? ' fill' : ''}" data-msd="${d}">${d}d</button>`).join(' ')}</span></div>`;
+  if(!guardAddr()) return head + `<div class="empty2">${tr('Add your wallet address on Today (My open positions) to see stats of your own trades.', 'Pridaj adresu peňaženky v Dnes (Moje otvorené pozície) a uvidíš štatistiku svojich obchodov.')}</div>`;
+  if(myStats.err) return head + `<div class="empty2">⚠️ ${esc(myStats.err)}</div>`;
+  if(!myStats.d) return head + `<div class="empty2"><span class="spin"></span> ${tr('Reading your trade history…', 'Čítam históriu obchodov…')}</div>`;
+  const T = myStats.d.trades; if(!T.length) return head + `<div class="empty2">${tr('No closed trades in this period.', 'V tomto období žiadne zavreté obchody.')}</div>`;
+  const sum = a => a.reduce((s, t) => s + t.net, 0), W = T.filter(t => t.net > 0), Lo = T.filter(t => t.net <= 0);
+  const net = sum(T), aw = W.length ? sum(W) / W.length : 0, al = Lo.length ? -sum(Lo) / Lo.length : 0, pf = Lo.length ? sum(W) / -sum(Lo) : Infinity, wr = W.length / T.length * 100;
+  const by = k => { const m = {}; T.forEach(t => { (m[t[k]] ||= {k:t[k], net:0, n:0}); m[t[k]].net += t.net; m[t[k]].n++; }); return Object.values(m).sort((a, b) => b.net - a.net); };
+  const coins = by('coin'), dirs = by('dir'), worst = T.slice().sort((a, b) => a.net - b.net)[0], liqs = T.filter(t => t.liq).length;
+  const money = v => `<span class="${v >= 0 ? 'up' : 'down'}">${fmtUsd(Math.round(v), true)}</span>`;
+  const tips = [];
+  if(al > aw * 1.3 && Lo.length >= 3) tips.push(tr(`Your average loss (${fmtUsd(Math.round(al))}) is ${(al / (aw || 1)).toFixed(1)}x your average win. Cut losers sooner: a stop on the exchange for every trade.`, `Tvoja priemerná strata (${fmtUsd(Math.round(al))}) je ${(al / (aw || 1)).toFixed(1)}× väčšia ako priemerný zisk. Režeš straty neskoro: daj stop na burzu pri každom obchode.`));
+  if(aw > al * 1.3 && wr < 45) tips.push(tr('Few wins but big ones: you let winners run. Keep doing that, just keep losses small.', 'Málo výhier, ale veľké: necháš zisky bežať. To je dobré, len drž straty malé.'));
+  if(myStats.d.fees > 0 && net > 0 && myStats.d.fees > net * 0.3) tips.push(tr(`Fees took ${fmtUsd(Math.round(myStats.d.fees))}, that is ${Math.round(myStats.d.fees / (net + myStats.d.fees) * 100)} % of your gross profit. Fewer, bigger trades or limit orders (cheaper) help.`, `Poplatky ťa stáli ${fmtUsd(Math.round(myStats.d.fees))}, to je ${Math.round(myStats.d.fees / (net + myStats.d.fees) * 100)} % hrubého zisku. Pomôže menej obchodov alebo limitky (sú lacnejšie).`));
+  if(coins.length >= 3 && coins.at(-1).net < 0) tips.push(tr(`You lose most on ${cname(coins.at(-1).k)} (${fmtUsd(Math.round(coins.at(-1).net))} over ${coins.at(-1).n} trades). Maybe leave it out.`, `Najviac strácaš na ${cname(coins.at(-1).k)} (${fmtUsd(Math.round(coins.at(-1).net))} z ${coins.at(-1).n} obchodov). Možno ho vynechaj.`));
+  if(dirs.length === 2 && Math.sign(dirs[0].net) !== Math.sign(dirs[1].net)) tips.push(tr(`${dirs[0].k === 'long' ? 'Longs' : 'Shorts'} make you money, ${dirs[1].k === 'long' ? 'longs' : 'shorts'} lose it.`, `Zarábaš na ${dirs[0].k === 'long' ? 'longoch' : 'shortoch'}, na ${dirs[1].k === 'long' ? 'longoch' : 'shortoch'} strácaš.`));
+  if(liqs) tips.push(tr(`${liqs} liquidation(s) in this period. Lower leverage and a stop would have been cheaper.`, `${liqs}× likvidácia v tomto období. Nižšia páka a stop by vyšli lacnejšie.`));
+  return head + `<div class="bal"><div><small>${tr('Net result', 'Čistý výsledok')}</small><b>${money(net)}</b></div><div><small>${tr('Trades · win rate', 'Obchody · úspešnosť')}</small><b>${T.length} · ${wr.toFixed(0)} %</b></div></div>
+    <div class="sc-lv" style="margin:10px 0"><div class="tgt"><small>${tr('Avg win', 'Priem. zisk')}</small><span>${fmtUsd(Math.round(aw))}</span></div><div class="stp"><small>${tr('Avg loss', 'Priem. strata')}</small><span>${fmtUsd(-Math.round(al))}</span></div><div><small>Profit factor</small><span>${isFinite(pf) ? pf.toFixed(2) : '∞'}</span></div><div><small>${tr('Fees', 'Poplatky')}</small><span>${fmtUsd(-Math.round(myStats.d.fees))}</span></div></div>
+    ${tips.map(x => `<div class="note">💡 ${x}</div>`).join('')}
+    <div class="sub">${tr('By coin', 'Podľa coinu')}</div>
+    ${coins.slice(0, 8).map(c => `<div class="prow"><span><b>${esc(cname(c.k))}</b> <span class="muted">${c.n}×</span></span><span>${money(c.net)}</span></div>`).join('')}
+    <div class="prow"><span>Long / Short</span><span>${dirs.map(d => `${d.k === 'long' ? 'L' : 'S'} ${money(d.net)}`).join(' · ')}</span></div>
+    ${worst && worst.net < 0 ? `<div class="prow"><span>${tr('Worst trade', 'Najhorší obchod')}: <b>${esc(cname(worst.coin))}</b> ${new Date(worst.t).toLocaleDateString(LANG === 'sk' ? 'sk-SK' : 'en-GB')}</span><span>${money(worst.net)}</span></div>` : ''}
+    <p class="hint">${tr('From your public Hyperliquid fill history (mainnet), fees included. Closing fills on one coin within 15 minutes count as one trade.', 'Z verejnej histórie tvojich obchodov na Hyperliquide (mainnet), po poplatkoch. Zatváracie obchody na jednom coine do 15 minút sa rátajú ako jeden obchod.')}${myStats.d.n >= 2000 ? ' ' + tr('Hyperliquid returns at most 2000 fills, so this covers only the most recent part of the period.', 'Hyperliquid vráti najviac 2000 fillov, takže je to len novšia časť obdobia.') : ''}</p>`;
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-msd]'); if(!b) return; myStats.days = +b.dataset.msd; myStats.d = null; renderMine(); refreshMyStats(true); });
 function renderMine(){
   const el = $('#sMine'); if(!el) return;
   const pp = PP(), eq = paperEquity(), pnl = eq - pp.start, a = pp.auto;
@@ -4340,6 +4387,7 @@ function renderMine(){
     ${mine.length ? mine.map(tRow).join('') : `<div class="empty2">${tr('No open real trade. Use 💰 Trade on a call to send it to Hyperliquid.', 'Žiadny otvorený skutočný obchod. Cez 💰 Obchodovať pri calle ho pošleš na Hyperliquid.')}</div>`}
     ${hist.length || done.length ? `<div class="sv-sec"><span>🕘 ${tr('Recently closed', 'Naposledy zavreté')}</span></div>
       ${hist.map(x => `<div class="prow"><span><b>${esc(x.coin)}</b> <span class="badge ${x.dir}">${x.dir === 'long' ? 'L' : 'S'}</span> <span class="muted">${REASON()[x.reason] || x.reason}</span></span><span>${money(x.pnl)}</span></div>`).join('')}${done.map(tRow).join('')}` : ''}
+    ${myStatsHtml()}
     <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="mPro">${tr('All details (Pro view)', 'Všetky detaily (Pro)')}</button></div>`;
 }
 document.addEventListener('click', e => {
@@ -4391,7 +4439,7 @@ function setView(v){
   document.body.dataset.view = v; S().sview = v; persist();
   $$('#snav button').forEach(b => b.classList.toggle('on', b.dataset.sv === v));
   if(v === 'home'){ renderHome(); loadBtcDay(); refreshGuard(); refreshWatch(); refreshWhales(); setTimeout(refreshXyz, 20000); if(!scanCache['4h'] || Date.now() - scanCache['4h'].t > 10 * 60000) refreshTop(); }
-  if(v === 'mine') renderMine();
+  if(v === 'mine'){ renderMine(); refreshMyStats(); }
   if(v === 'ask'){ renderAsk(); $('#askOut').innerHTML = ''; if(state.tf !== '4h'){ state.tf = '4h'; S().tf = '4h'; syncCoinUI(); load(); } } // answers on 4h, the tested timeframe
   document.querySelector('header').scrollIntoView({block:'start'});
 }
