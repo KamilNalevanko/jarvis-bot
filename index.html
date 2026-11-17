@@ -4162,6 +4162,7 @@ function renderHome(){
     <p class="sv-sub">${tr('Here is what J.A.R.V.I.S. sees on the 30 biggest coins (4h, the tested setup).', 'Toto vidí J.A.R.V.I.S. na 30 najväčších coinoch (4h, otestovaný setup).')}</p>
     <div class="mkt"><span class="ic">${icon}</span><div>${mk}</div></div>
     ${macroWarn()}
+    ${guardHtml()}
     ${watchHtml()}
     <div class="sv-sec"><span>🎯 ${tr('Trades for today', 'Obchody na dnes')} (${near.length})</span><button class="btn sm" id="hRefresh">↻ ${sc ? new Date(sc.t).toLocaleTimeString(LANG === 'sk' ? 'sk-SK' : 'en-GB', {hour:'2-digit', minute:'2-digit'}) : ''}</button></div>
     ${!sc ? `<div class="empty2"><span class="spin"></span> ${tr('Scanning 30 coins… this takes about a minute.', 'Skenujem 30 coinov… trvá to asi minútu.')}</div>`
@@ -4182,6 +4183,67 @@ function renderHome(){
       <p>${tr('Honest track record: price reaches the entry in about 3 of 10 trades, and roughly half of those reach Target 1 before the stop. The edge is small, so keep the risk small (1 % of your account per trade).', 'Poctivá štatistika: cena príde na vstup asi pri 3 z 10 obchodov a zhruba polovica z nich dôjde k Cieľu 1 skôr ako na stop. Výhoda je malá, preto riskuj málo (1 % účtu na obchod).')}</p>
     </details>`;
 }
+/* ---- position guard: the open MAINNET positions of a wallet (read-only, public address only), with a stop for each ---- */
+const guard = {t:0, rows:null, err:'', busy:false};
+const guardAddr = () => { try{ return localStorage.getItem('jv_guard_addr') || hlCfg().addr || ''; }catch(e){ return hlCfg().addr || ''; } };
+const mainInfo = body => fetch('https://api.hyperliquid.xyz/info', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}).then(r => { if(!r.ok) throw new Error('Hyperliquid ' + r.status); return r.json(); });
+function guardStop(dir, P, C1, a4){ // behind the nearest 1h swing that is at least 1 ATR(4h) away, plus a 0.25 ATR buffer for wicks
+  const L = dir === 'long', sw = [];
+  for(let i = 2; i < C1.length - 2; i++){ const c = C1[i], n = [C1[i-2], C1[i-1], C1[i+1], C1[i+2]];
+    if(L ? n.every(x => c.l <= x.l) : n.every(x => c.h >= x.h)) sw.push(L ? c.l : c.h); }
+  const far = sw.filter(x => L ? x <= P - a4 : x >= P + a4).sort((a, b) => L ? b - a : a - b)[0];
+  return far != null ? (L ? far - 0.25 * a4 : far + 0.25 * a4) : (L ? P - 1.5 * a4 : P + 1.5 * a4);
+}
+async function refreshGuard(force){
+  const addr = guardAddr(); if(!addr){ guard.rows = null; return; }
+  if(guard.busy || (!force && guard.rows && Date.now() - guard.t < 60000)) return;
+  guard.busy = true;
+  try{
+    const [st, oo] = await Promise.all([mainInfo({type:'clearinghouseState', user:addr}), mainInfo({type:'frontendOpenOrders', user:addr}).catch(() => [])]);
+    const pos = (st.assetPositions || []).map(x => x.position).filter(p => +p.szi);
+    const rows = [];
+    for(const p of pos){
+      const coin = p.coin, sz = +p.szi, dir = sz > 0 ? 'long' : 'short', s = sz > 0 ? 1 : -1, entry = +p.entryPx, val = +p.positionValue, P = Math.abs(val / sz);
+      const [C1, C4] = await Promise.all([fetchCandles(coin, '1h', 80).catch(() => []), fetchCandles(coin, '4h', 60).catch(() => [])]);
+      const a4 = C4.length > 20 ? atr(C4).at(-1) : P * 0.02;
+      const stops = (oo || []).filter(o => o.coin === coin && o.isTrigger && o.reduceOnly !== false && /stop/i.test(o.orderType || ''));
+      const exch = stops.length ? +stops.map(o => +o.triggerPx).sort((a, b) => s > 0 ? b - a : a - b)[0] : null;
+      const sugg = guardStop(dir, P, C1, a4), ahead = s * (P - entry) / a4;
+      rows.push({coin, dir, lev:p.leverage?.value || null, entry, P, val, upnl:+p.unrealizedPnl, liq:p.liquidationPx ? +p.liquidationPx : null,
+        exch, sugg, lossSugg:Math.abs(sz) * (sugg - entry) * s, lossExch:exch != null ? Math.abs(sz) * (exch - entry) * s : null, ahead, volPct:a4 / P * 100});
+    }
+    guard.rows = rows.sort((a, b) => b.val - a.val); guard.err = ''; guard.t = Date.now();
+  }catch(e){ guard.err = e.message; }
+  finally{ guard.busy = false; if(document.body.dataset.view === 'home') renderHome(); }
+}
+function guardHtml(){
+  const addr = guardAddr(), head = `<div class="sv-sec"><span>🛡️ ${tr('My open positions', 'Moje otvorené pozície')}</span>${addr ? `<button class="btn sm" id="gRefresh">↻</button>` : ''}</div>`;
+  if(!addr) return head + `<div class="sc"><div class="hint">${tr('Paste your Hyperliquid wallet address (public, read-only, never a key) and J.A.R.V.I.S. will check a stop for every open position.', 'Vlož adresu svojej Hyperliquid peňaženky (verejná, len na čítanie, nikdy nie kľúč) a J.A.R.V.I.S. ti ku každej otvorenej pozícii skontroluje stop.')}</div>
+    <div class="szbar"><input id="gAddr" placeholder="0x…" style="flex:1;min-width:0"><button class="btn sm" id="gSave">OK</button></div></div>`;
+  if(guard.err) return head + `<div class="sc"><div class="hint">⚠️ ${esc(guard.err)}</div></div>`;
+  if(!guard.rows) return head + `<div class="empty2"><span class="spin"></span> ${tr('Reading your positions…', 'Čítam tvoje pozície…')}</div>`;
+  if(!guard.rows.length) return head + `<div class="empty2">${tr('No open positions on Hyperliquid (mainnet).', 'Žiadne otvorené pozície na Hyperliquide (mainnet).')}</div>`;
+  const R = guard.rows, btc = R.find(r => r.coin === 'BTC')?.volPct || 1.7;
+  const nL = R.filter(r => r.dir === 'long').length, nS = R.length - nL, side = nL >= nS ? 'long' : 'short', same = R.filter(r => r.dir === side);
+  const hit5 = same.reduce((a, r) => a + r.val * 0.05 * Math.min(3, Math.max(1, r.volPct / btc)), 0); // alts move more than BTC
+  const allStops = R.reduce((a, r) => a + Math.min(0, r.lossExch ?? r.lossSugg), 0), noStop = R.filter(r => r.exch == null).length;
+  const rowHtml = r => { const s = r.dir === 'long' ? 1 : -1, liqD = r.liq ? Math.abs(r.liq / r.P - 1) * 100 : null;
+    const be = r.ahead >= 1 && (r.exch == null || s * (r.exch - r.entry) < 0);
+    const note = r.exch == null ? `<div class="sc-st wait">⚠️ ${tr('No stop on the exchange. Suggested', 'Nemáš stop na burze. Návrh')}: <b>${fmt(r.sugg)}</b> (${fmtUsd(Math.round(r.lossSugg), true)})</div>`
+      : `<div class="sc-st go">✅ Stop ${fmt(r.exch)} (${fmtUsd(Math.round(r.lossExch), true)})</div>`;
+    return `<div class="sc"><div class="sc-top"><span class="coin">${esc(cname(r.coin))}</span><span class="badge ${r.dir}">${r.dir === 'long' ? 'LONG' : 'SHORT'}</span><span class="tfl">${r.lev ? r.lev + 'x · ' : ''}${fmtUsd(r.val)}</span></div>
+      ${note}
+      <div class="sc-lv"><div><small>${tr('Entry', 'Vstup')}</small><span>${fmt(r.entry)}</span></div><div><small>${tr('Now', 'Teraz')}</small><span>${fmt(r.P)}</span></div><div class="${r.upnl >= 0 ? 'tgt' : 'stp'}"><small>PnL</small><span>${fmtUsd(r.upnl, true)}</span></div><div class="stp"><small>${tr('Liq.', 'Likv.')}</small><span>${r.liq ? fmt(r.liq) + ' (' + liqD.toFixed(0) + ' %)' : '–'}</span></div></div>
+      <div class="sc-why">${tr('Structural stop', 'Stop podľa štruktúry')} <b>${fmt(r.sugg)}</b>: ${tr('behind the nearest 1h swing at least one 4h ATR away, so a normal swing does not knock you out', 'za najbližším 1h swingom aspoň 1 ATR (4h) od ceny, aby ťa bežný výkyv nevybil')}.${be ? ' ' + tr(`Price is over 1 ATR in profit: the stop can go to entry (${fmt(r.entry)}).`, `Cena je viac ako 1 ATR v zisku: stop môže ísť na vstup (${fmt(r.entry)}).`) : ''}</div></div>`; };
+  const warn = same.length >= 3 ? `<div class="note warn">⚠️ ${tr(`${same.length} ${side}s at once is really one bet on the whole crypto market. If it moves 5 % against you, together that is roughly <b>${fmtUsd(-hit5)}</b>. The tested bot holds at most 2 per direction.`, `${same.length} ${side === 'long' ? 'longy' : 'shorty'} naraz je v skutočnosti jedna stávka na celý krypto trh. Keď sa pohne o 5 % proti tebe, spolu to je zhruba <b>${fmtUsd(-hit5)}</b>. Otestovaný bot drží max 2 na jeden smer.`)}</div>` : '';
+  return head + warn + `<p class="sv-sub" style="margin-top:-2px">${tr(`If every stop is hit: <b>${fmtUsd(allStops)}</b>${noStop ? ` (${noStop} without a stop on the exchange, counted with the suggested one)` : ''}.`, `Ak padnú všetky stopy: <b>${fmtUsd(allStops)}</b>${noStop ? ` (${noStop} bez stopu na burze, počítané s navrhnutým)` : ''}.`)}</p>` + R.map(rowHtml).join('');
+}
+document.addEventListener('click', e => {
+  if(e.target.closest('#gRefresh')){ refreshGuard(true); return; }
+  if(e.target.closest('#gSave')){ const v = ($('#gAddr')?.value || '').trim();
+    if(!/^0x[0-9a-fA-F]{40}$/.test(v)){ toast(tr('That is not a wallet address (0x + 40 characters).', 'To nie je adresa peňaženky (0x + 40 znakov).')); return; }
+    try{ localStorage.setItem('jv_guard_addr', v); }catch(err){} guard.rows = null; renderHome(); refreshGuard(true); }
+});
 /* ---- my coins: the ones Kamil trades, analysed on every visit of Today ---- */
 const watchData = {};
 const watchList = () => (S().watch && S().watch.length ? S().watch : ['ETH', 'BTC']);
@@ -4245,6 +4307,7 @@ document.addEventListener('click', e => {
   if(best) addPriceAlert(t.dataset.walert, best.call.plan.e1, `${best.call.dir.toUpperCase()} 4h: E1 ${fmt(best.call.plan.e1)} · SL ${fmt(best.call.plan.sl)} · TP2 ${fmt(best.call.plan.tp2)}`);
 });
 setInterval(() => { if(!document.hidden && document.body.dataset.view === 'home') refreshWatch(); }, 5 * 60000);
+setInterval(() => { if(!document.hidden && document.body.dataset.view === 'home') refreshGuard(); }, 60000);
 function openCallChart(c){ state.tf = c.tf; S().tf = c.tf; setView('chart'); setCoin(c.coin); }
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-hchart],[data-hdemo],[data-hlive],[data-wcoin],#hRefresh'); if(!t) return;
@@ -4327,7 +4390,7 @@ document.addEventListener('click', e => {
 function setView(v){
   document.body.dataset.view = v; S().sview = v; persist();
   $$('#snav button').forEach(b => b.classList.toggle('on', b.dataset.sv === v));
-  if(v === 'home'){ renderHome(); loadBtcDay(); refreshWatch(); refreshWhales(); setTimeout(refreshXyz, 20000); if(!scanCache['4h'] || Date.now() - scanCache['4h'].t > 10 * 60000) refreshTop(); }
+  if(v === 'home'){ renderHome(); loadBtcDay(); refreshGuard(); refreshWatch(); refreshWhales(); setTimeout(refreshXyz, 20000); if(!scanCache['4h'] || Date.now() - scanCache['4h'].t > 10 * 60000) refreshTop(); }
   if(v === 'mine') renderMine();
   if(v === 'ask'){ renderAsk(); $('#askOut').innerHTML = ''; if(state.tf !== '4h'){ state.tf = '4h'; S().tf = '4h'; syncCoinUI(); load(); } } // answers on 4h, the tested timeframe
   document.querySelector('header').scrollIntoView({block:'start'});
