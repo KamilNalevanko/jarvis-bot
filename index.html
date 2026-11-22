@@ -3338,6 +3338,26 @@ async function buildLive(call, riskPct){ // bracket for one call: 2 limit entrie
   return {c, a, ev, eq, p, L, sz, px, half, loss, capped, legs:[leg(p.e1, p.tp1), leg(p.e2, p.tp2)]};
 }
 const restingOid = res => res?.response?.data?.statuses?.[0]?.resting?.oid ?? null; // entry order id (null if it filled at once)
+async function liveRuleCheck(call, eq){ // the tested bot rules, checked against the real account before a live order
+  const c = hlCfg(), out = [];
+  try{
+    const [st, oo, fills] = await Promise.all([hlInfo({type:'clearinghouseState', user:c.addr}), hlInfo({type:'frontendOpenOrders', user:c.addr}).catch(() => []),
+      hlInfo({type:'userFillsByTime', user:c.addr, startTime:Date.now() - 7 * 864e5, aggregateByTime:true}).catch(() => [])]);
+    const pos = (st.assetPositions || []).map(x => x.position).filter(p => +p.szi);
+    const pend = [...new Set((oo || []).filter(o => !o.reduceOnly && !o.isTrigger && !pos.some(p => p.coin === o.coin)).map(o => o.coin + (o.side === 'B' ? 'L' : 'S')))];
+    const all = [...pos.map(p => ({coin:p.coin, dir:+p.szi > 0 ? 'long' : 'short'})), ...pend.map(k => ({coin:k.slice(0, -1), dir:k.endsWith('L') ? 'long' : 'short'}))];
+    if(all.some(x => x.coin === call.coin)) out.push(tr(`You already have a position or order on ${call.coin}.`, `Na ${call.coin} už máš pozíciu alebo príkaz.`));
+    if(all.length >= 3) out.push(tr(`${all.length} positions/orders open. Tested rule: max 3 at once.`, `Otvorených pozícií/príkazov: ${all.length}. Otestované pravidlo: max 3 naraz.`));
+    const same = all.filter(x => x.dir === call.dir).length;
+    if(same >= 2) out.push(tr(`Already ${same} ${call.dir}s. Tested rule: max 2 in one direction.`, `Už máš ${same}× ${call.dir}. Otestované pravidlo: max 2 v jednom smere.`));
+    const lost = (fills || []).filter(f => f.coin === call.coin && +f.closedPnl < 0 && Date.now() - f.time < 864e5);
+    if(lost.length) out.push(tr(`You closed ${call.coin} at a loss in the last 24 h. Tested rule: 24 h pause on that coin.`, `Za posledných 24 h si na ${call.coin} zavrel stratu. Otestované pravidlo: 24 h pauza na tom coine.`));
+    const wk = (fills || []).reduce((a, f) => a + +f.closedPnl - +f.fee, 0);
+    if(eq > 0 && wk < -0.05 * eq) out.push(tr(`This week you are ${fmtUsd(wk)} (${(wk / eq * 100).toFixed(1)} %). Brake: after -5 % in a week, take a break or halve the risk.`, `Tento týždeň si ${fmtUsd(wk)} (${(wk / eq * 100).toFixed(1)} %). Brzda: po -5 % za týždeň si daj pauzu alebo zníž risk na polovicu.`));
+  }catch(e){ out.push(tr('Could not check the account rules: ', 'Nepodarilo sa skontrolovať pravidlá účtu: ') + e.message); }
+  if(+S().risk > 1) out.push(tr(`Risk ${S().risk} % per trade. The backtest had losing streaks of 10 trades: at 1 % that is about -10 %.`, `Risk ${S().risk} % na obchod. V backteste boli série 10 strát po sebe: pri 1 % je to zhruba -10 %.`));
+  return out;
+}
 async function liveTradeCall(call){
   const c = hlCfg();
   if(!c.addr || !c.key){ openSettings('hl'); toast(tr('Connect your Hyperliquid API wallet first', 'Najprv pripoj Hyperliquid API wallet')); return; }
@@ -3348,7 +3368,8 @@ async function liveTradeCall(call){
       + `2) Limit ${side} ${B.sz} @ ${px(p.e2)} → TP2 ${px(p.tp2)} · SL ${px(p.sl)}\n\n`
       + `${tr('Total size','Celková veľkosť')} ${fmtUsd(B.half * 2 * p.avg)} · ${tr('max loss','max. strata')} ≈ ${fmtUsd(B.loss)} (${(B.loss / B.eq * 100).toFixed(2)} % ${tr('of','z')} ${fmtUsd(B.eq)})`
       + `${B.capped ? '\n' + tr('Size capped by your max position setting.', 'Veľkosť obmedzená tvojím max. nastavením.') : ''}\n\n${tr('Place these orders on Hyperliquid?', 'Zadať tieto príkazy na Hyperliquid?')}`;
-    if(!(await askConfirm(text))) return;
+    const warns = c.net === 'mainnet' ? await liveRuleCheck(call, B.eq) : [];
+    if(!(await askConfirm((warns.length ? '⚠️ ' + tr('CHECK BEFORE SENDING', 'SKONTROLUJ PRED ODOSLANÍM') + ':\n' + warns.map(w => '• ' + w).join('\n') + '\n\n' : '') + text))) return;
     const r1 = await hlExchange(B.legs[0]); let r2 = null;
     try{ r2 = await hlExchange(B.legs[1]); }
     catch(e){ toast(tr('Order 1 placed, order 2 failed: ', 'Príkaz 1 zadaný, príkaz 2 zlyhal: ') + e.message); }
