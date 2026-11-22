@@ -4386,6 +4386,30 @@ function myStatsHtml(){
     <p class="hint">${tr('From your public Hyperliquid fill history (mainnet), fees included. Closing fills on one coin within 15 minutes count as one trade.', 'Z verejnej histórie tvojich obchodov na Hyperliquide (mainnet), po poplatkoch. Zatváracie obchody na jednom coine do 15 minút sa rátajú ako jeden obchod.')}${myStats.d.n >= 2000 ? ' ' + tr('Hyperliquid returns at most 2000 fills, so this covers only the most recent part of the period.', 'Hyperliquid vráti najviac 2000 fillov, takže je to len novšia časť obdobia.') : ''}</p>`;
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-msd]'); if(!b) return; myStats.days = +b.dataset.msd; myStats.d = null; renderMine(); refreshMyStats(true); });
+/* ---- the 24/7 server bot (GitHub Actions, demo money): read its public state.json ---- */
+const SRV_URL = 'https://raw.githubusercontent.com/KamilNalevanko/jarvis-bot/main/state.json';
+const srv = {t:0, d:null, err:''};
+async function refreshSrv(force){
+  if(!force && srv.d && Date.now() - srv.t < 120000) return;
+  try{ const r = await fetch(SRV_URL + '?t=' + Date.now(), {cache:'no-store'}); if(!r.ok) throw new Error(r.status === 404 ? tr('no run yet', 'zatiaľ žiadny beh') : 'GitHub ' + r.status); srv.d = await r.json(); srv.err = ''; srv.t = Date.now(); }
+  catch(e){ srv.err = e.message; }
+  if(document.body.dataset.view === 'mine') renderMine();
+}
+function srvHtml(){
+  const head = `<div class="sv-sec"><span>🤖 ${tr('Server bot 24/7 (demo)', 'Server bot 24/7 (demo)')}</span><a class="btn sm" href="https://github.com/KamilNalevanko/jarvis-bot" target="_blank" rel="noopener">GitHub ↗</a></div>`;
+  const S2 = srv.d; if(!S2) return head + `<div class="empty2">${srv.err ? '⏳ ' + esc(srv.err) : '<span class="spin"></span>'}</div>`;
+  const eq = S2.equity?.length ? S2.equity.at(-1)[1] : S2.balance, pnl = eq - S2.start, f = (S2.history || []).filter(x => x.filled), wins = f.filter(x => x.pnl > 0).length;
+  const money = v => `<span class="${v >= 0 ? 'up' : 'down'}">${fmtUsd(v, true)}</span>`, ago = m => m < 60 ? m + ' min' : Math.round(m / 60) + ' h';
+  const stale = Date.now() - (S2.lastRun || 0) > 75 * 60000;
+  const open = (S2.brackets || []).map(b => `<div class="prow"><span><b>${esc(cname(b.coin))}</b> <span class="badge ${b.dir}">${b.dir === 'long' ? 'LONG' : 'SHORT'}</span> <span class="muted">${b.filledQty > 0 ? tr('in trade', 'v obchode') : tr('limit waiting', 'limitka čaká')}</span></span><span>${b.filledQty > 0 ? money(b.realized) : ''}</span>
+      <span class="p2">${b.filledQty > 0 ? tr('entry', 'vstup') + ' ' + fmt(b.avg) : 'E1 ' + fmt(b.legs[0].px) + ' / E2 ' + fmt(b.legs[1].px)} · stop ${fmt(b.sl)} · ${tr('targets', 'ciele')} ${fmt(b.tp1)} / ${fmt(b.tp2)}</span></div>`).join('');
+  const hist = f.slice(0, 8).map(x => `<div class="prow"><span><b>${esc(cname(x.coin))}</b> <span class="badge ${x.dir}">${x.dir === 'long' ? 'L' : 'S'}</span> <span class="muted">${new Date(x.closed).toLocaleDateString(LANG === 'sk' ? 'sk-SK' : 'en-GB')} · ${esc(x.reason)}</span></span><span>${money(x.pnl)} <small class="muted">${x.R != null ? x.R.toFixed(2) + 'R' : ''}</small></span></div>`).join('');
+  return head + `<div class="bal"><div><small>${tr('Demo account', 'Demo účet')}</small><b>${fmtUsd(eq)}</b></div><div><small>${tr('Since start', 'Od štartu')}</small><b>${money(pnl)}</b></div></div>
+    <p class="sv-sub" style="margin:6px 0">${tr(`Runs every 15 min on GitHub, also when your PC is off. Last run ${ago(Math.round((Date.now() - S2.lastRun) / 60000))} ago · ${S2.runs} runs · ${f.length} closed trades${f.length ? ', ' + Math.round(wins / f.length * 100) + ' % won' : ''}.`, `Beží každých 15 min na GitHube, aj keď máš vypnutý PC. Posledný beh pred ${ago(Math.round((Date.now() - S2.lastRun) / 60000))} · ${S2.runs} behov · ${f.length} uzavretých obchodov${f.length ? ', ' + Math.round(wins / f.length * 100) + ' % v zisku' : ''}.`)}${stale ? ' ⚠️ ' + tr('Late: GitHub sometimes delays scheduled runs.', 'Mešká: GitHub plánované behy občas posunie.') : ''}</p>
+    ${open || `<div class="empty2">${tr('No open trade. It waits for a tested 4h setup.', 'Žiadny otvorený obchod. Čaká na otestovaný 4h setup.')}</div>`}
+    ${hist ? `<div class="sub">${tr('Closed', 'Uzavreté')}</div>` + hist : ''}`;
+}
+setInterval(() => { if(!document.hidden && document.body.dataset.view === 'mine') refreshSrv(); }, 120000);
 function renderMine(){
   const el = $('#sMine'); if(!el) return;
   const pp = PP(), eq = paperEquity(), pnl = eq - pp.start, a = pp.auto;
@@ -4400,6 +4424,7 @@ function renderMine(){
     <div class="sv-h">💼 ${tr('My trades', 'Moje obchody')}</div>
     <p class="sv-sub">${tr('Demo money and your real trades in one place.', 'Demo peniaze a tvoje skutočné obchody na jednom mieste.')}</p>
     <div class="bal"><div><small>🧪 ${tr('Demo account', 'Demo účet')}</small><b>${fmtUsd(eq)}</b></div><div><small>${tr('Since start', 'Od začiatku')}</small><b>${money(pnl)}</b></div></div>
+    ${srvHtml()}
     <div class="sv-sec"><span>🤖 Autopilot</span><button class="btn sm${a.on ? ' fill' : ''}" id="mAuto">${a.on ? tr('ON · turn off', 'ZAPNUTÝ · vypnúť') : tr('OFF · turn on', 'VYPNUTÝ · zapnúť')}</button></div>
     <p class="sv-sub" style="margin:0">${tr('When on, J.A.R.V.I.S. opens the tested 4h trades in the demo by itself (max 3 at once, 1 % risk each) while this page is open.', 'Keď je zapnutý, J.A.R.V.I.S. sám otvára otestované 4h obchody v deme (max 3 naraz, 1 % riziko na každý), kým je stránka otvorená.')}</p>
     <div class="sv-sec"><span>🧪 ${tr('Demo positions', 'Demo pozície')} (${open.length})</span></div>
@@ -4460,7 +4485,7 @@ function setView(v){
   document.body.dataset.view = v; S().sview = v; persist();
   $$('#snav button').forEach(b => b.classList.toggle('on', b.dataset.sv === v));
   if(v === 'home'){ renderHome(); loadBtcDay(); refreshGuard(); refreshWatch(); refreshWhales(); setTimeout(refreshXyz, 20000); if(!scanCache['4h'] || Date.now() - scanCache['4h'].t > 10 * 60000) refreshTop(); }
-  if(v === 'mine'){ renderMine(); refreshMyStats(); }
+  if(v === 'mine'){ renderMine(); refreshMyStats(); refreshSrv(); }
   if(v === 'ask'){ renderAsk(); $('#askOut').innerHTML = ''; if(state.tf !== '4h'){ state.tf = '4h'; S().tf = '4h'; syncCoinUI(); load(); } } // answers on 4h, the tested timeframe
   document.querySelector('header').scrollIntoView({block:'start'});
 }
