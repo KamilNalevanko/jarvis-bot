@@ -558,6 +558,7 @@ header,.side,.bottom,.modal .box,.toast,.legend,.scrollhint{zoom:var(--ui,1)}
     <div class="card" id="scenCard"></div>
     <div class="card" id="liqCard"></div>
     <div class="card" id="whaleCard"></div>
+    <div class="card" id="bigCard"></div>
     <div class="card" id="indCard"></div>
     <div class="card" id="calcCard">
       <h3><span><span data-i18n="posSize"></span><span class="tip" tabindex="0" data-tip="pos">?</span></span></h3>
@@ -2299,7 +2300,7 @@ function runAnalysis(){
   setIndicatorData(A);
   setMarkers(A);
   refreshPlanVisuals();
-  renderScenarios(); renderLiq(); refreshWhales();
+  renderScenarios(); renderLiq(); refreshWhales(); loadBig();
 }
 
 /* ============================================================
@@ -2527,6 +2528,43 @@ function renderWhales(){
     <div class="sub" style="margin-top:0">${tr('Biggest positions', 'Najväčšie pozície')}</div>
     ${c.top.slice(0, 5).map(p => `<div class="wh-row"><span>#${p.rank} <span class="badge ${p.side}">${p.side === 'long' ? 'L' : 'S'}</span> ${fmtUsd(p.usd)}</span><span class="muted">@ ${fmt(p.entry)}${p.lev ? ' · ' + p.lev + 'x' : ''}</span><span class="${p.upnl >= 0 ? 'up' : 'down'}">${fmtUsd(p.upnl, true)}</span></div>`).join('')}
     <div class="hint" style="margin-top:8px">${tr(`The ${whales.traders} traders with the biggest profit this month (at least $1M all-time profit, no market makers), read live from Hyperliquid. This cannot be backtested (the exchange keeps no history of positions), so use it as context, not as a signal. Big profitable positions can also flip: when they take profit, price often bounces the other way.`, `${whales.traders} traderov s najväčším ziskom za mesiac (aspoň 1 M $ zisku celkovo, bez market makerov), načítané naživo z Hyperliquidu. Nedá sa to spätne otestovať (burza neukladá históriu pozícií), takže to ber ako kontext, nie signál. Veľké ziskové pozície sa vedia aj otočiť: keď vyberajú zisk, cena sa často odrazí opačne.`)} ${tr('Updated', 'Aktualizované')} ${new Date(whales.updated).toLocaleTimeString(LANG === 'sk' ? 'sk-SK' : 'en-GB', {hour:'2-digit', minute:'2-digit'})}.</div></div>`;
+}
+/* ---- big levels from the weekly chart: where traders look in long trends. Tested on 12 coins 2020-2026:
+   price did NOT bounce or hold there more often than at the same levels moved 3-6 %, so they are a map, not a signal ---- */
+const big = {};
+async function loadBig(coin = state.coin){
+  if(big[coin] && Date.now() - big[coin].t < 30 * 60000){ renderBig(); return; }
+  renderBig();
+  try{
+    const [W, D] = await Promise.all([fetchCandles(coin, '1w', 400, null, {bulk:true}), fetchCandles(coin, '1d', 730, null, {bulk:true})]);
+    const P = midOf(coin) ?? D.at(-1).c, lv = [];
+    for(let k = 2; k < W.length - 2; k++){ const w = W[k], nb = [W[k-2], W[k-1], W[k+1], W[k+2]];
+      if(nb.every(x => w.l <= x.l)) lv.push({px:w.l, k:tr('weekly low', 'týždenné dno'), t:w.t}); if(nb.every(x => w.h >= x.h)) lv.push({px:w.h, k:tr('weekly high', 'týždenný vrchol'), t:w.t}); }
+    const W2 = W.slice(-104); let hi = 0, lo = 0; W2.forEach((w, k) => { if(w.h > W2[hi].h) hi = k; if(w.l < W2[lo].l) lo = k; });
+    const Hh = W2[hi].h, Ll = W2[lo].l, up = lo < hi;
+    for(const r of [.5, .618, .786]) lv.push({px: up ? Hh - (Hh - Ll) * r : Ll + (Hh - Ll) * r, k:'Fib ' + r + ' ' + tr('of the big move', 'veľkého pohybu')});
+    if(W.length >= 200) lv.push({px:W.slice(-200).reduce((a, w) => a + w.c, 0) / 200, k:tr('200-week average', '200-týždňový priemer')});
+    const S = D.slice(-730), lo2 = Math.min(...S.map(c => c.l)), hi2 = Math.max(...S.map(c => c.h)), N = 50, bins = Array(N).fill(0);
+    S.forEach(c => bins[Math.min(N - 1, Math.floor(((c.h + c.l + c.c) / 3 - lo2) / (hi2 - lo2) * N))] += c.v * c.c);
+    bins.map((v, k) => ({px:lo2 + (k + .5) * (hi2 - lo2) / N, v})).filter((b, k, a) => (k === 0 || b.v > a[k-1].v) && (k === N - 1 || b.v >= a[k+1].v)).sort((a, b) => b.v - a.v).slice(0, 4)
+      .forEach(b => lv.push({px:b.px, k:tr('2-year volume node', 'objemový uzol 2 roky')}));
+    const near = (arr, s) => { const out = []; for(const x of arr.filter(x => s * (x.px - P) > 0 && Math.abs(x.px / P - 1) < 0.35).sort((a, b) => s * (a.px - b.px))){
+      const g = out.find(o => Math.abs(o.px / x.px - 1) < 0.015); if(g){ if(!g.k.includes(x.k)) g.k += ' + ' + x.k; g.n++; } else out.push({...x, n:1}); } return out.slice(0, 4); };
+    big[coin] = {t:Date.now(), P, above:near(lv, 1), below:near(lv, -1), ath:Math.max(...W.map(w => w.h)), years:(W.length / 52).toFixed(1)};
+  }catch(e){ big[coin] = {t:Date.now(), err:e.message}; }
+  if(coin === state.coin) renderBig();
+}
+function renderBig(){
+  const el = $('#bigCard'); if(!el) return; const coin = state.coin, b = big[coin];
+  el.className = 'card ' + foldCls('big');
+  const head = `<h3 data-fold="big"><span>🗺️ ${tr('Big levels (weekly)', 'Veľké hladiny (týždenný graf)')} · ${esc(cname(coin))}</span><span class="chev">▾</span></h3>`;
+  if(!b) { el.innerHTML = head + `<div class="fbody"><div class="hint"><span class="spin"></span></div></div>`; return; }
+  if(b.err){ el.innerHTML = head + `<div class="fbody"><div class="hint">⚠️ ${esc(b.err)}</div></div>`; return; }
+  const row = x => `<div class="prow"><span><b>${fmt(x.px)}</b> <span class="muted">${((x.px / b.P - 1) * 100).toFixed(1)} %</span></span><span class="p2" style="margin:0">${esc(x.k)}${x.n > 1 ? ' ⭐' : ''}</span></div>`;
+  el.innerHTML = head + `<div class="fbody">
+    <div class="sub">${tr('Above (resistance)', 'Nad cenou (odpor)')}</div>${b.above.map(row).join('') || `<div class="hint">${tr('Nothing within 35 %. All-time high', 'Nič do 35 %. Historické maximum')} ${fmt(b.ath)}</div>`}
+    <div class="sub">${tr('Below (support)', 'Pod cenou (podpora)')}</div>${b.below.map(row).join('') || `<div class="hint">–</div>`}
+    <p class="hint">${tr('Where traders look in a long trend: old weekly lows/highs, Fibonacci of the last big move, the 200-week average, prices where most volume traded. ⭐ = several meet. Honest test (12 coins, 2020-2026): price did not bounce or hold at these levels more often than at the same levels shifted by 3-6 %. Use them as a map for targets and stops, not as a reason to buy or sell.', 'Kde sa traderi pozerajú v dlhom trende: staré týždenné dná/vrcholy, Fibonacci posledného veľkého pohybu, 200-týždňový priemer, ceny s najväčším objemom. ⭐ = stretáva sa ich viac. Poctivý test (12 coinov, 2020-2026): cena sa na týchto hladinách neodrážala ani ich nedržala častejšie ako na tých istých hladinách posunutých o 3-6 %. Ber ich ako mapu pre ciele a stopy, nie ako dôvod kúpiť alebo predať.')} ${b.years} ${tr('years of data.', 'rokov dát.')}</p></div>`;
 }
 async function refreshWhales(force){ renderWhales(); await loadWhales(force); renderWhales(); if(document.body.dataset.view === 'home') renderHome(); }
 setInterval(() => { if(!document.hidden) refreshWhales(); }, 5 * 60000);
